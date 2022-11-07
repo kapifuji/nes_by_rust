@@ -5,3 +5,10 @@ version = 3
 [[package]]
 name = "nes_by_rust"
 version = "0.1.0"
+dependencies = [
+ "nes_core",
+]
+
+[[package]]
+name = "nes_core"
+version = "0.1.0"
