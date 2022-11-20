@@ -1,5 +1,13 @@
-use crate::ppu::PpuRegister;
-
+pub struct PpuRegister {
+    ppu_control: u8,
+    ppu_mask: u8,
+    ppu_status: u8,
+    oam_address: u8,
+    oam_data: u8,
+    ppu_scroll: u8,
+    ppu_address: u8,
+    ppu_data: u8,
+}
 struct CpuRegister {
     a: u8,
     x: u8,
@@ -48,6 +56,10 @@ impl Cpu {
         unimplemented!()
     }
     pub fn tick() {
+        unimplemented!()
+    }
+
+    pub fn get_ppu_register() -> PpuRegister {
         unimplemented!()
     }
 }

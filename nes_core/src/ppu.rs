@@ -1,13 +1,4 @@
-pub struct PpuRegister {
-    ppu_control: u8,
-    ppu_mask: u8,
-    ppu_status: u8,
-    oam_address: u8,
-    oam_data: u8,
-    ppu_scroll: u8,
-    ppu_address: u8,
-    ppu_data: u8,
-}
+use crate::cpu::PpuRegister;
 
 struct PpuMemory {
     /// 0x0000 ~ 0x0FFF
