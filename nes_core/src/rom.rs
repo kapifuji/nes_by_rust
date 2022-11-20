@@ -1,5 +1,5 @@
 /// 16 byte header
-struct Header {
+pub struct Header {
     /// 0-3: Constant $4E $45 $53 $1A ("NES" followed by MS-DOS end-of-file)
     constant: [u8; 4],
     /// 4: size of PRG ROM in 16 KB units
