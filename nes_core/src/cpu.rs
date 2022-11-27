@@ -53,13 +53,13 @@ pub struct Cpu {
 
 impl Cpu {
     pub fn new(prg_rom_data: &Vec<u8>) -> Cpu {
-        unimplemented!()
+        todo!()
     }
     pub fn tick() {
-        unimplemented!()
+        todo!()
     }
 
     pub fn get_ppu_register() -> PpuRegister {
-        unimplemented!()
+        todo!()
     }
 }
