@@ -10,14 +10,14 @@ pub struct Nes {
 
 impl Nes {
     pub fn new(rom_data: Vec<u8>) -> Nes {
-        unimplemented!()
+        todo!()
     }
 
     pub fn tick_cpu() {
-        unimplemented!()
+        todo!()
     }
 
     pub fn tick_ppu() {
-        unimplemented!()
+        todo!()
     }
 }

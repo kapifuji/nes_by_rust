@@ -36,9 +36,9 @@ pub struct Ppu {
 
 impl Ppu {
     pub fn new(chr_rom_data: &Vec<u8>) -> Ppu {
-        unimplemented!()
+        todo!()
     }
     pub fn tick(register: &PpuRegister) {
-        unimplemented!()
+        todo!()
     }
 }
