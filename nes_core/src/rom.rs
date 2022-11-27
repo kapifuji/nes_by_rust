@@ -177,7 +177,6 @@ impl Rom {
     }
 }
 
-// テスト書きましょう！！
 #[cfg(test)]
 mod tests {
     use super::*;
