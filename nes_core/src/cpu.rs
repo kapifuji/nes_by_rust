@@ -70,7 +70,7 @@ struct CpuMemory {
     wram: [u8; 0x800],
     /// 0x2000 ~ 0x2007
     ppu_register: PpuRegister,
-    /// 0x8000 ~ 0xBFFF
+    /// 0x8000 ~ 0xFFFF
     prg_rom: [u8; 0x8000],
 }
 impl CpuMemory {
@@ -90,6 +90,33 @@ impl CpuMemory {
             wram,
             ppu_register,
             prg_rom,
+        }
+    }
+
+    pub fn fetch_memory_byte(&self, address: u16) -> u8 {
+        match address {
+            0..=0x7fe => self.wram[address as usize],
+            0x2000..=0x2006 => todo!(),
+            0x8000..=0xfffe => self.prg_rom[(address - 0x8000) as usize],
+            _ => panic!("unexpected address: {}", address),
+        }
+    }
+
+    pub fn fetch_memory_word(&self, address: u16) -> u16 {
+        match address {
+            0..=0x7fe => {
+                let ret_under = self.wram[address as usize];
+                let ret_upper = self.wram[(address as usize) + 1];
+                (ret_under as u16) + ((ret_upper as u16) << 8)
+            }
+            0x2000..=0x2007 => todo!(),
+            0x8000..=0xfffe => {
+                let index = address - 0x8000;
+                let ret_under = self.prg_rom[index as usize];
+                let ret_upper = self.prg_rom[(index as usize) + 1];
+                (ret_under as u16) + ((ret_upper as u16) << 8)
+            }
+            _ => panic!("unexpected address: {}", address),
         }
     }
 }
@@ -117,6 +144,10 @@ impl Cpu {
     pub fn get_ppu_register() -> PpuRegister {
         todo!()
     }
+
+    pub fn reset(&mut self) {
+        self.register.pc = self.memory_map.fetch_memory_word(0xfffc);
+    }
 }
 
 #[cfg(test)]
@@ -133,5 +164,18 @@ mod tests {
 
         assert_eq!(cpu.register.sp, 0x01fd);
         assert_eq!(cpu.memory_map.prg_rom[0..5], [0x00, 0x01, 0x02, 0x03, 0x04]);
+    }
+
+    #[test]
+    fn cpu_reset() {
+        let mut prg_rom: Vec<u8> = Vec::new();
+        for i in 0u16..0x8000 {
+            prg_rom.push((i % 0x100) as u8);
+        }
+        let mut cpu = Cpu::new(&prg_rom);
+
+        cpu.reset();
+
+        assert_eq!(cpu.register.pc, 0xfdfc);
     }
 }
