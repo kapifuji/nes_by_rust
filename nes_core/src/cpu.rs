@@ -29,6 +29,15 @@ impl CpuRegister {
             pc: 0x00,
         }
     }
+
+    pub fn reset(&mut self) {
+        self.a = 0;
+        self.x = 0;
+        self.y = 0;
+        self.p.reset();
+        self.sp = 0x01fd;
+        self.pc = 0;
+    }
 }
 
 struct StatusRegister {
@@ -62,6 +71,17 @@ impl StatusRegister {
             z: false,
             c: false,
         }
+    }
+
+    pub fn reset(&mut self) {
+        self.n = false;
+        self.v = false;
+        self.r = true;
+        self.b = true;
+        self.d = false;
+        self.i = true;
+        self.z = false;
+        self.c = false;
     }
 }
 
