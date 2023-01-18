@@ -113,7 +113,7 @@ impl CpuMemory {
         }
     }
 
-    pub fn fetch_memory_byte(&self, address: u16) -> u8 {
+    pub fn read_memory_byte(&self, address: u16) -> u8 {
         match address {
             0..=0x7fe => self.wram[address as usize],
             0x2000..=0x2006 => todo!(),
@@ -122,7 +122,7 @@ impl CpuMemory {
         }
     }
 
-    pub fn fetch_memory_word(&self, address: u16) -> u16 {
+    pub fn read_memory_word(&self, address: u16) -> u16 {
         match address {
             0..=0x7fe => {
                 let ret_under = self.wram[address as usize];
@@ -166,7 +166,69 @@ impl Cpu {
     }
 
     pub fn reset(&mut self) {
-        self.register.pc = self.memory_map.fetch_memory_word(0xfffc);
+        self.register.reset();
+        self.register.pc = self.memory_map.read_memory_word(0xfffc);
+    }
+
+    fn lda(&mut self, value: u8) {
+        self.register.a = value;
+
+        self.update_zero_and_negative_flags(self.register.a);
+    }
+
+    fn tax(&mut self) {
+        self.register.x = self.register.a;
+
+        self.update_zero_and_negative_flags(self.register.x);
+    }
+
+    fn inx(&mut self) {
+        self.register.x = if self.register.x == 0xff {
+            0
+        } else {
+            self.register.x + 1
+        };
+
+        self.update_zero_and_negative_flags(self.register.x);
+    }
+
+    fn update_zero_and_negative_flags(&mut self, result: u8) {
+        self.register.p.z = if result == 0 { true } else { false };
+
+        self.register.p.n = if (result & 0b1000_0000) != 0 {
+            true
+        } else {
+            false
+        };
+    }
+
+    /// 命令テスト用関数
+    pub fn interpret(&mut self) {
+        self.register.pc = 0x8000;
+
+        loop {
+            let opscode = self.memory_map.read_memory_byte(self.register.pc);
+            self.register.pc += 1;
+
+            match opscode {
+                0x00 => {
+                    return;
+                }
+                0xA9 => {
+                    let param = self.memory_map.read_memory_byte(self.register.pc);
+                    self.register.pc += 1;
+
+                    self.lda(param);
+                }
+                0xAA => {
+                    self.tax();
+                }
+                0xE8 => {
+                    self.inx();
+                }
+                _ => todo!(),
+            }
+        }
     }
 }
 
@@ -197,5 +259,54 @@ mod tests {
         cpu.reset();
 
         assert_eq!(cpu.register.pc, 0xfdfc);
+    }
+
+    #[test]
+    fn test_0xa9_lda_immidiate_load_data() {
+        let program = vec![0xa9, 0x05, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.interpret();
+
+        assert_eq!(cpu.register.a, 0x05);
+        assert_eq!(cpu.register.p.z, false);
+        assert_eq!(cpu.register.p.n, false);
+    }
+
+    #[test]
+    fn test_0xa9_lda_zero_flag() {
+        let program = vec![0xa9, 0x00, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.interpret();
+
+        assert_eq!(cpu.register.p.z, true);
+    }
+
+    #[test]
+    fn test_0xaa_tax_move_a_to_x() {
+        let program = vec![0xaa, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.a = 10;
+        cpu.interpret();
+
+        assert_eq!(cpu.register.x, 10);
+    }
+
+    #[test]
+    fn test_5_ops_working_together() {
+        let program = vec![0xa9, 0xc0, 0xaa, 0xe8, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.interpret();
+
+        assert_eq!(cpu.register.x, 0xc1)
+    }
+
+    #[test]
+    fn test_inx_overflow() {
+        let program = vec![0xe8, 0xe8, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.x = 0xff;
+        cpu.interpret();
+
+        assert_eq!(cpu.register.x, 1)
     }
 }
