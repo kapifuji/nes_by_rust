@@ -170,6 +170,20 @@ impl CpuMemory {
     }
 }
 
+#[derive(Debug)]
+enum AddressingMode {
+    Immediate,
+    ZeroPage,
+    ZeroPageX,
+    ZeroPageY,
+    Absolute,
+    AbsoluteX,
+    AbsoluteY,
+    IndirectX,
+    IndirectY,
+    NoneAddressing,
+}
+
 pub struct Cpu {
     register: CpuRegister,
     memory_map: CpuMemory,
@@ -197,6 +211,44 @@ impl Cpu {
     pub fn reset(&mut self) {
         self.register.reset();
         self.register.pc = self.memory_map.read_memory_word(0xfffc);
+    }
+
+    /// アドレッシングモードに応じたアドレスを返します。
+    fn get_operand_address(&self, mode: &AddressingMode) -> u16 {
+        match mode {
+            AddressingMode::Immediate => self.register.pc,
+            AddressingMode::ZeroPage => self.memory_map.read_memory_byte(self.register.pc) as u16,
+            AddressingMode::Absolute => self.memory_map.read_memory_word(self.register.pc),
+            AddressingMode::ZeroPageX => {
+                let base = self.memory_map.read_memory_byte(self.register.pc);
+                base.wrapping_add(self.register.x) as u16
+            }
+            AddressingMode::ZeroPageY => {
+                let base = self.memory_map.read_memory_byte(self.register.pc);
+                base.wrapping_add(self.register.y) as u16
+            }
+            AddressingMode::AbsoluteX => {
+                let base = self.memory_map.read_memory_word(self.register.pc);
+                base.wrapping_add(self.register.x as u16)
+            }
+            AddressingMode::AbsoluteY => {
+                let base = self.memory_map.read_memory_word(self.register.pc);
+                base.wrapping_add(self.register.y as u16)
+            }
+            AddressingMode::IndirectX => {
+                let base = self.memory_map.read_memory_byte(self.register.pc);
+                let address = base.wrapping_add(self.register.x);
+                self.memory_map.read_memory_word(address as u16)
+            }
+            AddressingMode::IndirectY => {
+                let base = self.memory_map.read_memory_byte(self.register.pc);
+                let address = self.memory_map.read_memory_word(base as u16);
+                address.wrapping_add(self.register.y as u16)
+            }
+            AddressingMode::NoneAddressing => {
+                panic!("{:?} is not supported", mode);
+            }
+        }
     }
 
     fn lda(&mut self, value: u8) {
