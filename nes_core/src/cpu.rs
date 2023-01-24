@@ -339,7 +339,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn cpu_new() {
+    fn test_cpu_new() {
         let mut prg_rom: Vec<u8> = Vec::new();
         for i in 0..5 {
             prg_rom.push(i);
@@ -351,7 +351,7 @@ mod tests {
     }
 
     #[test]
-    fn cpu_reset() {
+    fn test_cpu_reset() {
         let mut prg_rom: Vec<u8> = Vec::new();
         for i in 0u16..0x8000 {
             prg_rom.push((i % 0x100) as u8);

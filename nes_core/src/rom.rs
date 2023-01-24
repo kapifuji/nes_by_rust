@@ -196,7 +196,7 @@ mod tests {
     }
 
     #[test]
-    fn rom_new() {
+    fn test_rom_new() {
         let rom = read_rom("../rom/sample1.nes").unwrap();
         let rom = Rom::new(&rom);
         assert_eq!([0x4e, 0x45, 0x53, 0x1a], rom.header.constant);
