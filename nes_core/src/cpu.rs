@@ -21,8 +21,8 @@ struct CpuRegister {
     sp: u16,
     pc: u16,
 }
-impl CpuRegister {
-    pub fn new() -> Self {
+impl Default for CpuRegister {
+    fn default() -> Self {
         Self {
             a: 0x00,
             x: 0x00,
@@ -32,14 +32,10 @@ impl CpuRegister {
             pc: 0x00,
         }
     }
-
-    pub fn reset(&mut self) {
-        self.a = 0;
-        self.x = 0;
-        self.y = 0;
-        self.p.reset();
-        self.sp = 0x01fd;
-        self.pc = 0;
+}
+impl CpuRegister {
+    pub fn new() -> Self {
+        Default::default()
     }
 }
 
@@ -62,8 +58,8 @@ struct StatusRegister {
     /// bit0 carry
     c: bool,
 }
-impl StatusRegister {
-    pub fn new() -> Self {
+impl Default for StatusRegister {
+    fn default() -> Self {
         Self {
             n: false,
             v: false,
@@ -75,16 +71,10 @@ impl StatusRegister {
             c: false,
         }
     }
-
-    pub fn reset(&mut self) {
-        self.n = false;
-        self.v = false;
-        self.r = true;
-        self.b = true;
-        self.d = false;
-        self.i = true;
-        self.z = false;
-        self.c = false;
+}
+impl StatusRegister {
+    pub fn new() -> Self {
+        Default::default()
     }
 }
 
@@ -215,7 +205,7 @@ impl Cpu {
     }
 
     pub fn reset(&mut self) {
-        self.register.reset();
+        self.register = CpuRegister::new();
         self.register.pc = self.memory_map.read_memory_word(0xfffc);
     }
 
