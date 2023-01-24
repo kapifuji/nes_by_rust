@@ -1,6 +1,7 @@
 use crate::cpu::AddressingMode;
 use std::collections::HashMap;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Instruction {
     BRK,
     TAX,
@@ -43,12 +44,13 @@ pub fn create_opcodes_map() -> HashMap<u8, Opcode> {
     map
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Opcode {
     code: u8,
-    instruction: Instruction,
-    bytes: u8,
+    pub instruction: Instruction,
+    pub bytes: u8,
     cycles: u8,
-    addressing_mode: AddressingMode,
+    pub addressing_mode: AddressingMode,
 }
 
 impl Opcode {

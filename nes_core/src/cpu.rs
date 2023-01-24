@@ -1,3 +1,6 @@
+use crate::opcode::{create_opcodes_map, Instruction, Opcode};
+use std::collections::HashMap;
+
 #[derive(Default)]
 pub struct PpuRegister {
     ppu_control: u8,
@@ -170,8 +173,8 @@ impl CpuMemory {
     }
 }
 
-#[derive(Debug)]
-enum AddressingMode {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AddressingMode {
     Immediate,
     ZeroPage,
     ZeroPageX,
@@ -187,16 +190,19 @@ enum AddressingMode {
 pub struct Cpu {
     register: CpuRegister,
     memory_map: CpuMemory,
+    opcodes: HashMap<u8, Opcode>,
 }
 
 impl Cpu {
     pub fn new(prg_rom_data: &Vec<u8>) -> Cpu {
         let register = CpuRegister::new();
         let memory_map = CpuMemory::new(&prg_rom_data);
+        let opcodes = create_opcodes_map();
 
         Self {
             register,
             memory_map,
+            opcodes,
         }
     }
 
@@ -295,41 +301,34 @@ impl Cpu {
         self.register.pc = 0x8000;
 
         loop {
-            let opscode = self.memory_map.read_memory_byte(self.register.pc);
+            let code = self.memory_map.read_memory_byte(self.register.pc);
             self.register.pc += 1;
 
-            match opscode {
-                0x00 => {
+            let opcode = self
+                .opcodes
+                .get(&code)
+                .expect(&format!("{} is not recognized", code))
+                .clone();
+
+            match opcode.instruction {
+                Instruction::BRK => {
                     return;
                 }
-                0x85 => {
-                    self.sta(&AddressingMode::ZeroPage);
-                    self.register.pc += 1;
+                Instruction::STA => {
+                    self.sta(&opcode.addressing_mode);
                 }
-                0x95 => {
-                    self.sta(&AddressingMode::ZeroPageX);
-                    self.register.pc += 1;
+                Instruction::LDA => {
+                    self.lda(&opcode.addressing_mode);
                 }
-                0xA9 => {
-                    self.lda(&AddressingMode::Immediate);
-                    self.register.pc += 1;
-                }
-                0xA5 => {
-                    self.lda(&AddressingMode::ZeroPage);
-                    self.register.pc += 1;
-                }
-                0xAD => {
-                    self.lda(&AddressingMode::Absolute);
-                    self.register.pc += 2;
-                }
-                0xAA => {
+                Instruction::TAX => {
                     self.tax();
                 }
-                0xE8 => {
+                Instruction::INX => {
                     self.inx();
                 }
-                _ => todo!(),
             }
+
+            self.register.pc += opcode.bytes as u16 - 1;
         }
     }
 }
