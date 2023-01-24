@@ -1,4 +1,5 @@
 mod cpu;
+mod opcode;
 mod ppu;
 mod rom;
 
