@@ -125,16 +125,45 @@ impl CpuMemory {
     pub fn read_memory_word(&self, address: u16) -> u16 {
         match address {
             0..=0x7fe => {
-                let ret_under = self.wram[address as usize];
-                let ret_upper = self.wram[(address as usize) + 1];
-                (ret_under as u16) + ((ret_upper as u16) << 8)
+                let lo = self.wram[address as usize];
+                let hi = self.wram[(address as usize) + 1];
+                (lo as u16) + ((hi as u16) << 8)
             }
             0x2000..=0x2007 => todo!(),
             0x8000..=0xfffe => {
                 let index = address - 0x8000;
-                let ret_under = self.prg_rom[index as usize];
-                let ret_upper = self.prg_rom[(index as usize) + 1];
-                (ret_under as u16) + ((ret_upper as u16) << 8)
+                let lo = self.prg_rom[index as usize];
+                let hi = self.prg_rom[(index as usize) + 1];
+                (lo as u16) + ((hi as u16) << 8)
+            }
+            _ => panic!("unexpected address: {}", address),
+        }
+    }
+
+    pub fn write_memory_byte(&mut self, address: u16, value: u8) {
+        let write_ref = match address {
+            0..=0x7fe => &mut self.wram[address as usize],
+            0x2000..=0x2006 => todo!(),
+            0x8000..=0xfffe => &mut self.prg_rom[(address - 0x8000) as usize],
+            _ => panic!("unexpected address: {}", address),
+        };
+        *write_ref = value;
+    }
+
+    pub fn write_memory_word(&mut self, address: u16, value: u16) {
+        let lo = (value & 0x00ff) as u8;
+        let hi = ((value & 0xff00) >> 8) as u8;
+
+        match address {
+            0..=0x7fe => {
+                self.wram[address as usize] = lo;
+                self.wram[(address as usize) + 1] = hi;
+            }
+            0x2000..=0x2007 => todo!(),
+            0x8000..=0xfffe => {
+                let index = address - 0x8000;
+                self.prg_rom[index as usize] = lo;
+                self.prg_rom[(index as usize) + 1] = hi;
             }
             _ => panic!("unexpected address: {}", address),
         }
