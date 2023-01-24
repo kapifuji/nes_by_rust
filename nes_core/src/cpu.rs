@@ -251,9 +251,11 @@ impl Cpu {
         }
     }
 
-    fn lda(&mut self, value: u8) {
-        self.register.a = value;
+    fn lda(&mut self, mode: &AddressingMode) {
+        let address = self.get_operand_address(mode);
+        let value = self.memory_map.read_memory_byte(address);
 
+        self.register.a = value;
         self.update_zero_and_negative_flags(self.register.a);
     }
 
@@ -296,10 +298,16 @@ impl Cpu {
                     return;
                 }
                 0xA9 => {
-                    let param = self.memory_map.read_memory_byte(self.register.pc);
+                    self.lda(&AddressingMode::Immediate);
                     self.register.pc += 1;
-
-                    self.lda(param);
+                }
+                0xA5 => {
+                    self.lda(&AddressingMode::ZeroPage);
+                    self.register.pc += 1;
+                }
+                0xAD => {
+                    self.lda(&AddressingMode::Absolute);
+                    self.register.pc += 2;
                 }
                 0xAA => {
                     self.tax();
@@ -360,6 +368,16 @@ mod tests {
         cpu.interpret();
 
         assert_eq!(cpu.register.p.z, true);
+    }
+
+    #[test]
+    fn test_lda_from_memory() {
+        let program = vec![0xa5, 0x10, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.memory_map.write_memory_byte(0x0010, 0x55);
+        cpu.interpret();
+
+        assert_eq!(cpu.register.a, 0x55);
     }
 
     #[test]
