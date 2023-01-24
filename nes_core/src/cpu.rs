@@ -275,6 +275,11 @@ impl Cpu {
         self.update_zero_and_negative_flags(self.register.x);
     }
 
+    fn sta(&mut self, mode: &AddressingMode) {
+        let address = self.get_operand_address(mode);
+        self.memory_map.write_memory_byte(address, self.register.a);
+    }
+
     fn update_zero_and_negative_flags(&mut self, result: u8) {
         self.register.p.z = if result == 0 { true } else { false };
 
@@ -296,6 +301,14 @@ impl Cpu {
             match opscode {
                 0x00 => {
                     return;
+                }
+                0x85 => {
+                    self.sta(&AddressingMode::ZeroPage);
+                    self.register.pc += 1;
+                }
+                0x95 => {
+                    self.sta(&AddressingMode::ZeroPageX);
+                    self.register.pc += 1;
                 }
                 0xA9 => {
                     self.lda(&AddressingMode::Immediate);
