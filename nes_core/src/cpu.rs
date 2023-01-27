@@ -165,13 +165,16 @@ impl CpuMemory {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AddressingMode {
+    Accumulator,
     Immediate,
     ZeroPage,
     ZeroPageX,
     ZeroPageY,
+    Relative,
     Absolute,
     AbsoluteX,
     AbsoluteY,
+    Indirect,
     IndirectX,
     IndirectY,
     NoneAddressing,
@@ -212,9 +215,9 @@ impl Cpu {
     /// アドレッシングモードに応じたアドレスを返します。
     fn get_operand_address(&self, mode: &AddressingMode) -> u16 {
         match mode {
+            AddressingMode::Accumulator => todo!("not impl"),
             AddressingMode::Immediate => self.register.pc,
             AddressingMode::ZeroPage => self.memory_map.read_memory_byte(self.register.pc) as u16,
-            AddressingMode::Absolute => self.memory_map.read_memory_word(self.register.pc),
             AddressingMode::ZeroPageX => {
                 let base = self.memory_map.read_memory_byte(self.register.pc);
                 base.wrapping_add(self.register.x) as u16
@@ -223,6 +226,8 @@ impl Cpu {
                 let base = self.memory_map.read_memory_byte(self.register.pc);
                 base.wrapping_add(self.register.y) as u16
             }
+            AddressingMode::Relative => todo!("not impl"),
+            AddressingMode::Absolute => self.memory_map.read_memory_word(self.register.pc),
             AddressingMode::AbsoluteX => {
                 let base = self.memory_map.read_memory_word(self.register.pc);
                 base.wrapping_add(self.register.x as u16)
@@ -231,6 +236,7 @@ impl Cpu {
                 let base = self.memory_map.read_memory_word(self.register.pc);
                 base.wrapping_add(self.register.y as u16)
             }
+            AddressingMode::Indirect => todo!("not impl"),
             AddressingMode::IndirectX => {
                 let base = self.memory_map.read_memory_byte(self.register.pc);
                 let address = base.wrapping_add(self.register.x);
@@ -316,6 +322,7 @@ impl Cpu {
                 Instruction::INX => {
                     self.inx();
                 }
+                _ => todo!("not impl"),
             }
 
             self.register.pc += opcode.bytes as u16 - 1;

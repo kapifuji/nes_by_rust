@@ -3,11 +3,118 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Instruction {
+    /// Add with Carry
+    ADC,
+    /// Lgical AND
+    AND,
+    /// Arithmetic Shift Left
+    ASL,
+    /// Branch if Carry Clear
+    BCC,
+    /// Branch if Carry Set
+    BCS,
+    /// Branch if Equal
+    BEQ,
+    /// Bit Test
+    BIT,
+    /// Branch if Minus
+    BMI,
+    /// Branch if Not Equal
+    BNE,
+    /// Branch if Positive
+    BPL,
+    /// Force Interrupt
     BRK,
-    TAX,
+    /// Branch if Overflow Clear
+    BVC,
+    /// Branch if Overflow Set
+    BVS,
+    /// Clear Carry Flag
+    CLC,
+    /// Clear Decimal Mode
+    CLD,
+    /// Clear Interrupt Disable
+    CLI,
+    /// Clear Overflow Flag
+    CLV,
+    /// Compare
+    CMP,
+    /// Compare X Register
+    CPX,
+    /// Compare Y Register
+    CPY,
+    /// Decrement Memory
+    DEC,
+    /// Decrement X Register
+    DEX,
+    /// Decrement Y Register
+    DEY,
+    /// Exclusive OR
+    EOR,
+    /// increment Memory
+    INC,
+    /// increment X Register
     INX,
+    /// increment Y Register
+    INY,
+    /// Jump
+    JMP,
+    /// Jump to Subroutine
+    JSR,
+    /// Load Accumulator
     LDA,
+    /// Load X Register
+    LDX,
+    /// Load Y Register
+    LDY,
+    /// Logical Shift Right
+    LSR,
+    /// No Operation
+    NOP,
+    /// Logical Inclusive OR
+    ORA,
+    /// Push Accumulator
+    PHA,
+    /// Push Processor Status
+    PHP,
+    /// Pull Accumulator
+    PLA,
+    /// Pull Processor Status
+    PLP,
+    /// Rotate Left
+    ROL,
+    /// Rotate Right
+    ROR,
+    /// Return from Interrupt
+    RTI,
+    /// Return from Subroutine
+    RTS,
+    /// Subtract with Carry
+    SBC,
+    /// Set Carry Flag
+    SEC,
+    /// Set Decimal Flag
+    SED,
+    /// Set Interrupt Disable
+    SEI,
+    /// Store Accumulator
     STA,
+    /// Store X Register
+    STX,
+    /// Store Y Register
+    STY,
+    /// Transfer Accumulator to X
+    TAX,
+    /// Transfer Accumulator to Y
+    TAY,
+    /// Transfer Stack Pointer to X
+    TSX,
+    /// Transfer X to Accumulator
+    TXA,
+    /// Transfer X to Stack Pointer
+    TXS,
+    /// Transfer Y to Stack Pointer
+    TYA,
 }
 
 // 本来はグローバル変数で置きたいところだが、std以外の機能が必要になる。
