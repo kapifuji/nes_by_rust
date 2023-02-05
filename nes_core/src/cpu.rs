@@ -266,20 +266,6 @@ impl Cpu {
         }
     }
 
-    fn lda(&mut self, mode: &AddressingMode) {
-        let address = self.get_operand_address(mode);
-        let value = self.memory_map.read_memory_byte(address);
-
-        self.register.a = value;
-        self.update_zero_and_negative_flags(self.register.a);
-    }
-
-    fn tax(&mut self) {
-        self.register.x = self.register.a;
-
-        self.update_zero_and_negative_flags(self.register.x);
-    }
-
     fn inx(&mut self) {
         self.register.x = if self.register.x == 0xff {
             0
@@ -290,9 +276,74 @@ impl Cpu {
         self.update_zero_and_negative_flags(self.register.x);
     }
 
+    fn lda(&mut self, mode: &AddressingMode) {
+        let address = self.get_operand_address(mode);
+        let value = self.memory_map.read_memory_byte(address);
+
+        self.register.a = value;
+        self.update_zero_and_negative_flags(self.register.a);
+    }
+
+
+    fn sec(&mut self) {
+        self.register.p.c = true;
+    }
+
+    fn sed(&mut self) {
+        self.register.p.d = true;
+    }
+
+    fn sei(&mut self) {
+        self.register.p.i = true;
+    }
+
     fn sta(&mut self, mode: &AddressingMode) {
         let address = self.get_operand_address(mode);
         self.memory_map.write_memory_byte(address, self.register.a);
+    }
+
+    fn stx(&mut self, mode: &AddressingMode) {
+        let address = self.get_operand_address(mode);
+        self.memory_map.write_memory_byte(address, self.register.x);
+    }
+
+    fn sty(&mut self, mode: &AddressingMode) {
+        let address = self.get_operand_address(mode);
+        self.memory_map.write_memory_byte(address, self.register.y);
+    }
+
+    fn tax(&mut self) {
+        self.register.x = self.register.a;
+
+        self.update_zero_and_negative_flags(self.register.x);
+    }
+
+    fn tay(&mut self) {
+        self.register.y = self.register.a;
+
+        self.update_zero_and_negative_flags(self.register.y);
+    }
+
+    fn tsx(&mut self) {
+        self.register.x = self.register.sp;
+
+        self.update_zero_and_negative_flags(self.register.x);
+    }
+
+    fn txa(&mut self) {
+        self.register.a = self.register.x;
+
+        self.update_zero_and_negative_flags(self.register.a);
+    }
+
+    fn txs(&mut self) {
+        self.register.sp = self.register.x;
+    }
+
+    fn tya(&mut self) {
+        self.register.a = self.register.y;
+
+        self.update_zero_and_negative_flags(self.register.a);
     }
 
     fn update_zero_and_negative_flags(&mut self, result: u8) {
@@ -323,18 +374,20 @@ impl Cpu {
                 Instruction::BRK => {
                     return;
                 }
-                Instruction::STA => {
-                    self.sta(&opcode.addressing_mode);
-                }
-                Instruction::LDA => {
-                    self.lda(&opcode.addressing_mode);
-                }
-                Instruction::TAX => {
-                    self.tax();
-                }
-                Instruction::INX => {
-                    self.inx();
-                }
+                Instruction::INX => self.inx(),
+                Instruction::LDA => self.lda(&opcode.addressing_mode),
+                Instruction::SEC => self.sec(),
+                Instruction::SED => self.sed(),
+                Instruction::SEI => self.sei(),
+                Instruction::STA => self.sta(&opcode.addressing_mode),
+                Instruction::STX => self.stx(&opcode.addressing_mode),
+                Instruction::STY => self.sty(&opcode.addressing_mode),
+                Instruction::TAX => self.tax(),
+                Instruction::TAY => self.tay(),
+                Instruction::TSX => self.tsx(),
+                Instruction::TXA => self.txa(),
+                Instruction::TXS => self.txs(),
+                Instruction::TYA => self.tya(),
                 _ => todo!("not impl"),
             }
 
@@ -373,6 +426,16 @@ mod tests {
     }
 
     #[test]
+    fn test_inx_overflow() {
+        let program = vec![0xe8, 0xe8, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.x = 0xff;
+        cpu.interpret();
+
+        assert_eq!(cpu.register.x, 1)
+    }
+
+    #[test]
     fn test_0xa9_lda_immidiate_load_data() {
         let program = vec![0xa9, 0x05, 0x00];
         let mut cpu = Cpu::new(&program);
@@ -393,6 +456,42 @@ mod tests {
     }
 
     #[test]
+    fn test_0xa9_lda_negative_flag() {
+        let program = vec![0xa9, 0b1000_0000, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.interpret();
+
+        assert_eq!(cpu.register.p.n, true);
+    }
+
+    #[test]
+    fn test_sec_set_carry() {
+        let program = vec![0x38, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.interpret();
+
+        assert_eq!(cpu.register.p.c, true);
+    }
+
+    #[test]
+    fn test_sed_set_decimal() {
+        let program = vec![0xf8, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.interpret();
+
+        assert_eq!(cpu.register.p.d, true);
+    }
+
+    #[test]
+    fn test_sei_disable_interrupt() {
+        let program = vec![0x78, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.interpret();
+
+        assert_eq!(cpu.register.p.i, true);
+    }
+
+    #[test]
     fn test_lda_from_memory() {
         let program = vec![0xa5, 0x10, 0x00];
         let mut cpu = Cpu::new(&program);
@@ -400,6 +499,36 @@ mod tests {
         cpu.interpret();
 
         assert_eq!(cpu.register.a, 0x55);
+    }
+
+    #[test]
+    fn test_0x85_sta_store_a() {
+        let program = vec![0x85, 0x10, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.a = 100;
+        cpu.interpret();
+
+        assert_eq!(cpu.memory_map.read_memory_byte(0x0010), 100);
+    }
+
+    #[test]
+    fn test_0x86_sty_store_x() {
+        let program = vec![0x86, 0x10, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.x = 100;
+        cpu.interpret();
+
+        assert_eq!(cpu.memory_map.read_memory_byte(0x0010), 100);
+    }
+
+    #[test]
+    fn test_0x84_sty_store_y() {
+        let program = vec![0x84, 0x10, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.y = 100;
+        cpu.interpret();
+
+        assert_eq!(cpu.memory_map.read_memory_byte(0x0010), 100);
     }
 
     #[test]
@@ -422,12 +551,52 @@ mod tests {
     }
 
     #[test]
-    fn test_inx_overflow() {
-        let program = vec![0xe8, 0xe8, 0x00];
+    fn test_tay_move_a_to_y() {
+        let program = vec![0xa8, 0x00];
         let mut cpu = Cpu::new(&program);
-        cpu.register.x = 0xff;
+        cpu.register.a = 20;
         cpu.interpret();
 
-        assert_eq!(cpu.register.x, 1)
+        assert_eq!(cpu.register.y, 20);
+    }
+
+    #[test]
+    fn test_tsx_move_sp_to_x() {
+        let program = vec![0xba, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.sp = 0x50;
+        cpu.interpret();
+
+        assert_eq!(cpu.register.x, 0x50);
+    }
+
+    #[test]
+    fn test_txa_move_x_to_a() {
+        let program = vec![0x8a, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.x = 20;
+        cpu.interpret();
+
+        assert_eq!(cpu.register.a, 20);
+    }
+
+    #[test]
+    fn test_txs_move_x_to_sp() {
+        let program = vec![0x9a, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.x = 0x50;
+        cpu.interpret();
+
+        assert_eq!(cpu.register.sp, 0x50);
+    }
+
+    #[test]
+    fn test_tya_move_y_to_a() {
+        let program = vec![0x98, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.y = 20;
+        cpu.interpret();
+
+        assert_eq!(cpu.register.a, 20);
     }
 }
