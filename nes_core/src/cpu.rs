@@ -371,9 +371,7 @@ impl Cpu {
                 .clone();
 
             match opcode.instruction {
-                Instruction::BRK => {
-                    return;
-                }
+                Instruction::BRK => return,
                 Instruction::INX => self.inx(),
                 Instruction::LDA => self.lda(&opcode.addressing_mode),
                 Instruction::SEC => self.sec(),
