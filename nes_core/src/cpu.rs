@@ -34,7 +34,7 @@ impl Default for CpuRegister {
             x: 0x00,
             y: 0x00,
             p: StatusRegister::new(),
-            sp: 0x01fd,
+            sp: 0xfd,
             pc: 0x00,
         }
     }
@@ -92,7 +92,7 @@ impl StatusRegister {
 }
 
 struct CpuMemory {
-    /// 0x0000 ~ 0x07FF (0x0100 ~ 0x1fff is stack)
+    /// 0x0000 ~ 0x07FF (0x0100 ~ 0x01ff is stack)
     wram: [u8; 0x800],
     /// 0x2000 ~ 0x2007
     ppu_register: PpuRegister,
@@ -355,7 +355,7 @@ mod tests {
         }
         let cpu = Cpu::new(&prg_rom);
 
-        assert_eq!(cpu.register.sp, 0x01fd);
+        assert_eq!(cpu.register.sp, 0xfd);
         assert_eq!(cpu.memory_map.prg_rom[0..5], [0x00, 0x01, 0x02, 0x03, 0x04]);
     }
 
