@@ -14,11 +14,17 @@ pub struct PpuRegister {
 }
 
 struct CpuRegister {
+    /// Accumulator
     a: u8,
+    /// Index Register X
     x: u8,
+    /// Index Register Y
     y: u8,
+    /// Processor status
     p: StatusRegister,
-    sp: u16,
+    /// Stack Pointer
+    sp: u8,
+    /// Program Counter
     pc: u16,
 }
 impl Default for CpuRegister {
@@ -44,18 +50,25 @@ struct StatusRegister {
     /// 演算結果が1のときセット
     n: bool,
     /// bit6 overflow
+    /// 演算結果がオーバーフローを起こした時にセット
     v: bool,
     /// bit5 reserved
+    /// 常にセット
     r: bool,
     /// bit4 break mode
+    /// BRK発生時にセット、IRQ発生時にクリア
     b: bool,
     /// bit3 decimal mode
+    /// 0: デフォルト、1: BCDモード
     d: bool,
     /// bit2 not allowed IRQ
+    /// false: IRQ許可、true: IRQ禁止
     i: bool,
     /// bit1 zero
+    /// 演算結果が0の時にセット
     z: bool,
     /// bit0 carry
+    /// キャリー発生時にセット
     c: bool,
 }
 impl Default for StatusRegister {
@@ -79,7 +92,7 @@ impl StatusRegister {
 }
 
 struct CpuMemory {
-    /// 0x0000 ~ 0x07FF
+    /// 0x0000 ~ 0x07FF (0x0100 ~ 0x1fff is stack)
     wram: [u8; 0x800],
     /// 0x2000 ~ 0x2007
     ppu_register: PpuRegister,
