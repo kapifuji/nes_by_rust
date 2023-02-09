@@ -266,6 +266,49 @@ impl Cpu {
         }
     }
 
+    /// is_adc @ true: adc, false: sbc
+    fn adc_sbc_sub(&mut self, mode: &AddressingMode, is_adc: bool) {
+        let address = self.get_operand_address(mode);
+        let value = if is_adc == true {
+            self.memory_map.read_memory_byte(address)
+        } else {
+            255 - self.memory_map.read_memory_byte(address)
+        };
+
+        let old_a = self.register.a;
+
+        let ret = self
+            .register
+            .a
+            .overflowing_add(value + if self.register.p.c == true { 1 } else { 0 });
+
+        // 演算結果
+        self.register.a = ret.0;
+
+        // update z, n
+        self.update_zero_and_negative_flags(self.register.a);
+
+        // update c
+        if is_adc == true {
+            if ret.1 == true {
+                self.register.p.c = true;
+            }
+        } else {
+            if ret.1 == false {
+                self.register.p.c = false;
+            }
+        }
+
+        // update v (ref. http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html)
+        if ((old_a ^ ret.0) & (value ^ ret.0) & 0x80) != 0 {
+            self.register.p.v = true;
+        }
+    }
+
+    fn adc(&mut self, mode: &AddressingMode) {
+        self.adc_sbc_sub(mode, true);
+    }
+
     fn inx(&mut self) {
         self.register.x = if self.register.x == 0xff {
             0
@@ -284,6 +327,9 @@ impl Cpu {
         self.update_zero_and_negative_flags(self.register.a);
     }
 
+    fn sbc(&mut self, mode: &AddressingMode) {
+        self.adc_sbc_sub(mode, false);
+    }
 
     fn sec(&mut self) {
         self.register.p.c = true;
@@ -371,9 +417,11 @@ impl Cpu {
                 .clone();
 
             match opcode.instruction {
+                Instruction::ADC => self.adc(&opcode.addressing_mode),
                 Instruction::BRK => return,
                 Instruction::INX => self.inx(),
                 Instruction::LDA => self.lda(&opcode.addressing_mode),
+                Instruction::SBC => self.sbc(&opcode.addressing_mode),
                 Instruction::SEC => self.sec(),
                 Instruction::SED => self.sed(),
                 Instruction::SEI => self.sei(),
@@ -424,6 +472,45 @@ mod tests {
     }
 
     #[test]
+    fn test_0x69_adc_addtion() {
+        let program = vec![0x69, 0x10, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.a = 0x50;
+        cpu.register.p.c = true;
+        cpu.interpret();
+
+        assert_eq!(cpu.register.a, 0x61);
+        assert_eq!(cpu.register.p.c, true);
+        assert_eq!(cpu.register.p.v, false);
+    }
+
+    #[test]
+    fn test_0x69_adc_overflow1() {
+        let program = vec![0x69, 0x50, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.a = 0x50;
+        cpu.register.p.c = true;
+        cpu.interpret();
+
+        assert_eq!(cpu.register.a, 0xa1);
+        assert_eq!(cpu.register.p.c, true);
+        assert_eq!(cpu.register.p.v, true);
+    }
+
+    #[test]
+    fn test_0x69_adc_overflow2() {
+        let program = vec![0x69, 0x90, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.a = 0xd0;
+        cpu.register.p.c = false;
+        cpu.interpret();
+
+        assert_eq!(cpu.register.a, 0x60);
+        assert_eq!(cpu.register.p.c, true);
+        assert_eq!(cpu.register.p.v, true);
+    }
+
+    #[test]
     fn test_inx_overflow() {
         let program = vec![0xe8, 0xe8, 0x00];
         let mut cpu = Cpu::new(&program);
@@ -460,6 +547,45 @@ mod tests {
         cpu.interpret();
 
         assert_eq!(cpu.register.p.n, true);
+    }
+
+    #[test]
+    fn test_0xe9_sbc_subtraction() {
+        let program = vec![0xe9, 0x40, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.a = 0x50;
+        cpu.register.p.c = true;
+        cpu.interpret();
+
+        assert_eq!(cpu.register.a, 0x10);
+        assert_eq!(cpu.register.p.c, true);
+        assert_eq!(cpu.register.p.v, false);
+    }
+
+    #[test]
+    fn test_0xe9_sbc_overflow1() {
+        let program = vec![0xe9, 0xb0, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.a = 0x50;
+        cpu.register.p.c = true;
+        cpu.interpret();
+
+        assert_eq!(cpu.register.a, 0xa0);
+        assert_eq!(cpu.register.p.c, false);
+        assert_eq!(cpu.register.p.v, true);
+    }
+
+    #[test]
+    fn test_0xe9_sbc_overflow2() {
+        let program = vec![0xe9, 0x70, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.a = 0xd0;
+        cpu.register.p.c = false;
+        cpu.interpret();
+
+        assert_eq!(cpu.register.a, 0x5f);
+        assert_eq!(cpu.register.p.c, false);
+        assert_eq!(cpu.register.p.v, true);
     }
 
     #[test]
