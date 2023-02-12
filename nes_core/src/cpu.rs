@@ -636,7 +636,7 @@ mod tests {
     }
 
     #[test]
-    fn test_0x86_sty_store_x() {
+    fn test_0x86_stx_store_x() {
         let program = vec![0x86, 0x10, 0x00];
         let mut cpu = Cpu::new(&program);
         cpu.register.x = 100;
