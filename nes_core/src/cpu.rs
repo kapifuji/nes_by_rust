@@ -313,6 +313,15 @@ impl Cpu {
         self.adc_sbc_sub(mode, true);
     }
 
+    fn and(&mut self, mode: &AddressingMode) {
+        let address = self.get_operand_address(mode);
+        let value = self.memory_map.read_memory_byte(address);
+
+        self.register.a &= value;
+
+        self.update_zero_and_negative_flags(self.register.a);
+    }
+
     fn inx(&mut self) {
         self.register.x = if self.register.x == 0xff {
             0
@@ -422,6 +431,7 @@ impl Cpu {
 
             match opcode.instruction {
                 Instruction::ADC => self.adc(&opcode.addressing_mode),
+                Instruction::AND => self.and(&opcode.addressing_mode),
                 Instruction::BRK => return,
                 Instruction::INX => self.inx(),
                 Instruction::LDA => self.lda(&opcode.addressing_mode),
@@ -512,6 +522,116 @@ mod tests {
         assert_eq!(cpu.register.a, 0x60);
         assert_eq!(cpu.register.p.c, true);
         assert_eq!(cpu.register.p.v, true);
+    }
+
+    #[test]
+    fn test_0x29_and() {
+        let program = vec![0x29, 0xf0, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.a = 0xff;
+        cpu.interpret();
+
+        assert_eq!(cpu.register.a, 0xf0);
+        assert_eq!(cpu.register.p.z, false);
+        assert_eq!(cpu.register.p.n, true);
+    }
+
+    #[test]
+    fn test_0x25_and() {
+        let program = vec![0x25, 0x10, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.a = 0xff;
+        cpu.memory_map.write_memory_byte(0x0010, 0xf0);
+        cpu.interpret();
+
+        assert_eq!(cpu.register.a, 0xf0);
+        assert_eq!(cpu.register.p.z, false);
+        assert_eq!(cpu.register.p.n, true);
+    }
+
+    #[test]
+    fn test_0x35_and() {
+        let program = vec![0x35, 0x10, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.a = 0xff;
+        cpu.register.x = 0xff;
+        cpu.memory_map.write_memory_byte(0x000f, 0xf0);
+        cpu.interpret();
+
+        assert_eq!(cpu.register.a, 0xf0);
+        assert_eq!(cpu.register.p.z, false);
+        assert_eq!(cpu.register.p.n, true);
+    }
+
+    #[test]
+    fn test_0x2d_and() {
+        let program = vec![0x2d, 0x12, 0x05, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.a = 0xff;
+        cpu.memory_map.write_memory_byte(0x0512, 0xf0);
+        cpu.interpret();
+
+        assert_eq!(cpu.register.a, 0xf0);
+        assert_eq!(cpu.register.p.z, false);
+        assert_eq!(cpu.register.p.n, true);
+    }
+
+    #[test]
+    fn test_0x3d_and() {
+        let program = vec![0x3d, 0x12, 0x05, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.a = 0xff;
+        cpu.register.x = 0xff;
+        cpu.memory_map.write_memory_byte(0x0511, 0xf0);
+        cpu.interpret();
+
+        assert_eq!(cpu.register.a, 0xf0);
+        assert_eq!(cpu.register.p.z, false);
+        assert_eq!(cpu.register.p.n, true);
+    }
+
+    #[test]
+    fn test_0x39_and() {
+        let program = vec![0x39, 0x12, 0x05, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.a = 0xff;
+        cpu.register.y = 0xff;
+        cpu.memory_map.write_memory_byte(0x0511, 0xf0);
+        cpu.interpret();
+
+        assert_eq!(cpu.register.a, 0xf0);
+        assert_eq!(cpu.register.p.z, false);
+        assert_eq!(cpu.register.p.n, true);
+    }
+
+    #[test]
+    fn test_0x21_and() {
+        let program = vec![0x21, 0x10, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.a = 0xff;
+        cpu.register.x = 0xff;
+        cpu.memory_map.write_memory_word(0x000f, 0x0512);
+        cpu.memory_map.write_memory_byte(0x0512, 0xf0);
+        cpu.interpret();
+
+        assert_eq!(cpu.register.a, 0xf0);
+        assert_eq!(cpu.register.p.z, false);
+        assert_eq!(cpu.register.p.n, true);
+    }
+
+    #[test]
+    fn test_0x31_and() {
+        let program = vec![0x31, 0x10, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.a = 0xff;
+        cpu.register.y = 0xff;
+        cpu.memory_map.write_memory_word(0x0010, 0x0512);
+        cpu.memory_map.write_memory_byte(0x0511, 0xf0);
+        cpu.interpret();
+
+        assert_eq!(cpu.register.a, 0xf0);
+        assert_eq!(cpu.register.p.z, false);
+        assert_eq!(cpu.register.p.n, true);
     }
 
     #[test]
