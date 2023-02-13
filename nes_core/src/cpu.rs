@@ -243,11 +243,13 @@ impl Cpu {
             AddressingMode::Absolute => self.memory_map.read_memory_word(self.register.pc),
             AddressingMode::AbsoluteX => {
                 let base = self.memory_map.read_memory_word(self.register.pc);
-                base.wrapping_add(self.register.x as u16)
+                let lo = ((base & 0x00ff) as u8).wrapping_add(self.register.x);
+                (base & 0xff00) + lo as u16
             }
             AddressingMode::AbsoluteY => {
                 let base = self.memory_map.read_memory_word(self.register.pc);
-                base.wrapping_add(self.register.y as u16)
+                let lo = ((base & 0x00ff) as u8).wrapping_add(self.register.y);
+                (base & 0xff00) + lo as u16
             }
             AddressingMode::Indirect => todo!("not impl"),
             AddressingMode::IndirectX => {
@@ -258,7 +260,9 @@ impl Cpu {
             AddressingMode::IndirectY => {
                 let base = self.memory_map.read_memory_byte(self.register.pc);
                 let address = self.memory_map.read_memory_word(base as u16);
-                address.wrapping_add(self.register.y as u16)
+
+                let lo = ((address & 0x00ff) as u8).wrapping_add(self.register.y);
+                (address & 0xff00) + lo as u16
             }
             AddressingMode::NoneAddressing => {
                 panic!("{:?} is not supported", mode);
