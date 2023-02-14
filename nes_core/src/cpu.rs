@@ -228,7 +228,6 @@ impl Cpu {
     /// アドレッシングモードに応じたアドレスを返します。
     fn get_operand_address(&self, mode: &AddressingMode) -> u16 {
         match mode {
-            AddressingMode::Accumulator => todo!("not impl"),
             AddressingMode::Immediate => self.register.pc,
             AddressingMode::ZeroPage => self.memory_map.read_memory_byte(self.register.pc) as u16,
             AddressingMode::ZeroPageX => {
@@ -264,7 +263,7 @@ impl Cpu {
                 let lo = ((address & 0x00ff) as u8).wrapping_add(self.register.y);
                 (address & 0xff00) + lo as u16
             }
-            AddressingMode::NoneAddressing => {
+            AddressingMode::NoneAddressing | AddressingMode::Accumulator => {
                 panic!("{:?} is not supported", mode);
             }
         }
