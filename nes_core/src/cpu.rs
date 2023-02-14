@@ -321,6 +321,20 @@ impl Cpu {
         self.update_zero_and_negative_flags(self.register.a);
     }
 
+    fn asl(&mut self, mode: &AddressingMode) {
+        let value = if *mode == AddressingMode::Accumulator {
+            self.register.a
+        } else {
+            let address = self.get_operand_address(mode);
+            self.memory_map.read_memory_byte(address)
+        };
+
+        self.register.a = value << 1;
+
+        self.register.p.c = if (value & 0x80) == 0 { false } else { true };
+        self.update_zero_and_negative_flags(self.register.a);
+    }
+
     fn inx(&mut self) {
         self.register.x = if self.register.x == 0xff {
             0
@@ -431,6 +445,7 @@ impl Cpu {
             match opcode.instruction {
                 Instruction::ADC => self.adc(&opcode.addressing_mode),
                 Instruction::AND => self.and(&opcode.addressing_mode),
+                Instruction::ASL => self.asl(&opcode.addressing_mode),
                 Instruction::BRK => return,
                 Instruction::INX => self.inx(),
                 Instruction::LDA => self.lda(&opcode.addressing_mode),
@@ -631,6 +646,32 @@ mod tests {
         assert_eq!(cpu.register.a, 0xf0);
         assert_eq!(cpu.register.p.z, false);
         assert_eq!(cpu.register.p.n, true);
+    }
+
+    #[test]
+    fn test_0x0a_asl() {
+        let program = vec![0x0a, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.a = 0b1100_1111;
+        cpu.interpret();
+
+        assert_eq!(cpu.register.a, 0b1001_1110);
+        assert_eq!(cpu.register.p.c, true);
+        assert_eq!(cpu.register.p.z, false);
+        assert_eq!(cpu.register.p.n, true);
+    }
+
+    #[test]
+    fn test_0x06_asl() {
+        let program = vec![0x06, 0x10, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.memory_map.write_memory_byte(0x0010, 0b0000_1111);
+        cpu.interpret();
+
+        assert_eq!(cpu.register.a, 0b0001_1110);
+        assert_eq!(cpu.register.p.c, false);
+        assert_eq!(cpu.register.p.z, false);
+        assert_eq!(cpu.register.p.n, false);
     }
 
     #[test]
