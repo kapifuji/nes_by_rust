@@ -336,11 +336,7 @@ impl Cpu {
     }
 
     fn inx(&mut self) {
-        self.register.x = if self.register.x == 0xff {
-            0
-        } else {
-            self.register.x + 1
-        };
+        self.register.x = self.register.x.wrapping_add(1);
 
         self.update_zero_and_negative_flags(self.register.x);
     }
