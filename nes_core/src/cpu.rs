@@ -335,6 +335,19 @@ impl Cpu {
         self.update_zero_and_negative_flags(self.register.a);
     }
 
+    fn bcc(&mut self, mode: &AddressingMode) {
+        let address = self.get_operand_address(mode);
+        let offset = self.memory_map.read_memory_byte(address);
+
+        if self.register.p.c == false {
+            if offset >= 0x80 {
+                self.register.pc += (offset - 0x80) as u16;
+            } else {
+                self.register.pc -= offset as u16;
+            }
+        }
+    }
+
     fn inx(&mut self) {
         self.register.x = self.register.x.wrapping_add(1);
 
@@ -442,6 +455,7 @@ impl Cpu {
                 Instruction::ADC => self.adc(&opcode.addressing_mode),
                 Instruction::AND => self.and(&opcode.addressing_mode),
                 Instruction::ASL => self.asl(&opcode.addressing_mode),
+                Instruction::BCC => self.bcc(&opcode.addressing_mode),
                 Instruction::BRK => return,
                 Instruction::INX => self.inx(),
                 Instruction::LDA => self.lda(&opcode.addressing_mode),
@@ -668,6 +682,28 @@ mod tests {
         assert_eq!(cpu.register.p.c, false);
         assert_eq!(cpu.register.p.z, false);
         assert_eq!(cpu.register.p.n, false);
+    }
+
+    #[test]
+    fn test_bcc_branch() {
+        let program = vec![0x90, 0x81, 0x00, 0x0a, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.p.c = false;
+        cpu.register.a = 0b0000_0001;
+        cpu.interpret();
+
+        assert_eq!(cpu.register.a, 0b0000_0010);
+    }
+
+    #[test]
+    fn test_bcc_not_branch() {
+        let program = vec![0x90, 0x81, 0x00, 0x0a, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.p.c = true;
+        cpu.register.a = 0b0000_0001;
+        cpu.interpret();
+
+        assert_eq!(cpu.register.a, 0b0000_0001);
     }
 
     #[test]
