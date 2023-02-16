@@ -238,7 +238,7 @@ impl Cpu {
                 let base = self.memory_map.read_memory_byte(self.register.pc);
                 base.wrapping_add(self.register.y) as u16
             }
-            AddressingMode::Relative => todo!("not impl"),
+            AddressingMode::Relative => self.register.pc,
             AddressingMode::Absolute => self.memory_map.read_memory_word(self.register.pc),
             AddressingMode::AbsoluteX => {
                 let base = self.memory_map.read_memory_word(self.register.pc);
