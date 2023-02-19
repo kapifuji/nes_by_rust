@@ -335,108 +335,51 @@ impl Cpu {
         self.update_zero_and_negative_flags(self.register.a);
     }
 
-    fn bcc(&mut self, mode: &AddressingMode) {
+    fn bxx_sub(&mut self, mode: &AddressingMode, target_status: bool, trigger: bool) {
         let address = self.get_operand_address(mode);
         let offset = self.memory_map.read_memory_byte(address);
 
-        if self.register.p.c == false {
+        if target_status == trigger {
             if offset >= 0x80 {
                 self.register.pc += (offset - 0x80) as u16;
             } else {
                 self.register.pc -= offset as u16;
             }
         }
+    }
+
+    fn bcc(&mut self, mode: &AddressingMode) {
+        self.bxx_sub(mode, self.register.p.c, false);
     }
 
     fn bcs(&mut self, mode: &AddressingMode) {
-        let address = self.get_operand_address(mode);
-        let offset = self.memory_map.read_memory_byte(address);
-
-        if self.register.p.c == true {
-            if offset >= 0x80 {
-                self.register.pc += (offset - 0x80) as u16;
-            } else {
-                self.register.pc -= offset as u16;
-            }
-        }
+        self.bxx_sub(mode, self.register.p.c, true);
     }
 
     fn beq(&mut self, mode: &AddressingMode) {
-        let address = self.get_operand_address(mode);
-        let offset = self.memory_map.read_memory_byte(address);
+        self.bxx_sub(mode, self.register.p.z, true);
+    }
 
-        if self.register.p.z == true {
-            if offset >= 0x80 {
-                self.register.pc += (offset - 0x80) as u16;
-            } else {
-                self.register.pc -= offset as u16;
-            }
-        }
     }
 
     fn bmi(&mut self, mode: &AddressingMode) {
-        let address = self.get_operand_address(mode);
-        let offset = self.memory_map.read_memory_byte(address);
-
-        if self.register.p.n == true {
-            if offset >= 0x80 {
-                self.register.pc += (offset - 0x80) as u16;
-            } else {
-                self.register.pc -= offset as u16;
-            }
-        }
+        self.bxx_sub(mode, self.register.p.n, true);
     }
 
     fn bne(&mut self, mode: &AddressingMode) {
-        let address = self.get_operand_address(mode);
-        let offset = self.memory_map.read_memory_byte(address);
-
-        if self.register.p.z == false {
-            if offset >= 0x80 {
-                self.register.pc += (offset - 0x80) as u16;
-            } else {
-                self.register.pc -= offset as u16;
-            }
-        }
+        self.bxx_sub(mode, self.register.p.z, false);
     }
 
     fn bpl(&mut self, mode: &AddressingMode) {
-        let address = self.get_operand_address(mode);
-        let offset = self.memory_map.read_memory_byte(address);
-
-        if self.register.p.n == false {
-            if offset >= 0x80 {
-                self.register.pc += (offset - 0x80) as u16;
-            } else {
-                self.register.pc -= offset as u16;
-            }
-        }
+        self.bxx_sub(mode, self.register.p.n, false);
     }
 
     fn bvc(&mut self, mode: &AddressingMode) {
-        let address = self.get_operand_address(mode);
-        let offset = self.memory_map.read_memory_byte(address);
-
-        if self.register.p.v == false {
-            if offset >= 0x80 {
-                self.register.pc += (offset - 0x80) as u16;
-            } else {
-                self.register.pc -= offset as u16;
-            }
-        }
+        self.bxx_sub(mode, self.register.p.v, false);
     }
 
     fn bvs(&mut self, mode: &AddressingMode) {
-        let address = self.get_operand_address(mode);
-        let offset = self.memory_map.read_memory_byte(address);
-
-        if self.register.p.v == true {
-            if offset >= 0x80 {
-                self.register.pc += (offset - 0x80) as u16;
-            } else {
-                self.register.pc -= offset as u16;
-            }
-        }
+        self.bxx_sub(mode, self.register.p.v, true);
     }
 
     fn inx(&mut self) {
