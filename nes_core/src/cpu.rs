@@ -387,6 +387,19 @@ impl Cpu {
         }
     }
 
+    fn bne(&mut self, mode: &AddressingMode) {
+        let address = self.get_operand_address(mode);
+        let offset = self.memory_map.read_memory_byte(address);
+
+        if self.register.p.z == false {
+            if offset >= 0x80 {
+                self.register.pc += (offset - 0x80) as u16;
+            } else {
+                self.register.pc -= offset as u16;
+            }
+        }
+    }
+
     fn inx(&mut self) {
         self.register.x = self.register.x.wrapping_add(1);
 
@@ -498,6 +511,7 @@ impl Cpu {
                 Instruction::BCS => self.bcs(&opcode.addressing_mode),
                 Instruction::BEQ => self.beq(&opcode.addressing_mode),
                 Instruction::BMI => self.bmi(&opcode.addressing_mode),
+                Instruction::BNE => self.bne(&opcode.addressing_mode),
                 Instruction::BRK => return,
                 Instruction::INX => self.inx(),
                 Instruction::LDA => self.lda(&opcode.addressing_mode),
@@ -808,6 +822,28 @@ mod tests {
         let program = vec![0x30, 0x81, 0x00, 0x0a, 0x00];
         let mut cpu = Cpu::new(&program);
         cpu.register.p.n = false;
+        cpu.register.a = 0b0000_0001;
+        cpu.interpret();
+
+        assert_eq!(cpu.register.a, 0b0000_0001);
+    }
+
+    #[test]
+    fn test_bne_branch() {
+        let program = vec![0xd0, 0x81, 0x00, 0x0a, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.p.z = false;
+        cpu.register.a = 0b0000_0001;
+        cpu.interpret();
+
+        assert_eq!(cpu.register.a, 0b0000_0010);
+    }
+
+    #[test]
+    fn test_bne_not_branch() {
+        let program = vec![0xd0, 0x81, 0x00, 0x0a, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.p.z = true;
         cpu.register.a = 0b0000_0001;
         cpu.interpret();
 
