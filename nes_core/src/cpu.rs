@@ -707,6 +707,16 @@ mod tests {
     }
 
     #[test]
+    fn test_brk() {
+        let program = vec![0x00, 0x0a, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.a = 0b0000_0001;
+        cpu.interpret();
+
+        assert_eq!(cpu.register.a, 0b0000_0001);
+    }
+
+    #[test]
     fn test_inx_overflow() {
         let program = vec![0xe8, 0xe8, 0x00];
         let mut cpu = Cpu::new(&program);
