@@ -390,6 +390,21 @@ impl Cpu {
         self.bxx_sub(mode, self.register.p.v, true);
     }
 
+    fn clc(&mut self) {
+        self.register.p.c = false;
+    }
+
+    fn cld(&mut self) {
+        self.register.p.d = false;
+    }
+
+    fn cli(&mut self) {
+        self.register.p.i = false;
+    }
+
+    fn clv(&mut self) {
+        self.register.p.v = false;
+    }
     fn inx(&mut self) {
         self.register.x = self.register.x.wrapping_add(1);
 
@@ -506,6 +521,10 @@ impl Cpu {
                 Instruction::BRK => return,
                 Instruction::BVC => self.bvc(&opcode.addressing_mode),
                 Instruction::BVS => self.bvs(&opcode.addressing_mode),
+                Instruction::CLC => self.clc(),
+                Instruction::CLD => self.cld(),
+                Instruction::CLI => self.cli(),
+                Instruction::CLV => self.clv(),
                 Instruction::INX => self.inx(),
                 Instruction::LDA => self.lda(&opcode.addressing_mode),
                 Instruction::SBC => self.sbc(&opcode.addressing_mode),
@@ -920,6 +939,45 @@ mod tests {
         assert_eq!(cpu.register.a, 0b0000_0001);
     }
 
+    #[test]
+    fn test_clc() {
+        let program = vec![0x18, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.p.c = true;
+        cpu.interpret();
+
+        assert_eq!(cpu.register.p.c, false);
+    }
+
+    #[test]
+    fn test_cld() {
+        let program = vec![0xd8, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.p.d = true;
+        cpu.interpret();
+
+        assert_eq!(cpu.register.p.d, false);
+    }
+
+    #[test]
+    fn test_cli() {
+        let program = vec![0x58, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.p.i = true;
+        cpu.interpret();
+
+        assert_eq!(cpu.register.p.i, false);
+    }
+
+    #[test]
+    fn test_clv() {
+        let program = vec![0xb8, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.p.v = true;
+        cpu.interpret();
+
+        assert_eq!(cpu.register.p.v, false);
+    }
     #[test]
     fn test_inx_overflow() {
         let program = vec![0xe8, 0xe8, 0x00];
