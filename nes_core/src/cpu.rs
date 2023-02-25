@@ -322,17 +322,25 @@ impl Cpu {
     }
 
     fn asl(&mut self, mode: &AddressingMode) {
-        let value = if *mode == AddressingMode::Accumulator {
+        let old_value = if *mode == AddressingMode::Accumulator {
             self.register.a
         } else {
             let address = self.get_operand_address(mode);
             self.memory_map.read_memory_byte(address)
         };
 
-        self.register.a = value << 1;
+        let result = old_value << 1;
 
-        self.register.p.c = if (value & 0x80) == 0 { false } else { true };
-        self.update_zero_and_negative_flags(self.register.a);
+        self.register.p.c = if (old_value & 0x80) == 0 { false } else { true };
+
+        if *mode == AddressingMode::Accumulator {
+            self.register.a = result
+        } else {
+            let address = self.get_operand_address(mode);
+            self.memory_map.write_memory_byte(address, result);
+        };
+
+        self.update_zero_and_negative_flags(result);
     }
 
     fn bxx_sub(&mut self, mode: &AddressingMode, target_status: bool, trigger: bool) {
@@ -719,7 +727,8 @@ mod tests {
         cpu.memory_map.write_memory_byte(0x0010, 0b0000_1111);
         cpu.interpret();
 
-        assert_eq!(cpu.register.a, 0b0001_1110);
+        let result = cpu.memory_map.read_memory_byte(0x0010);
+        assert_eq!(result, 0b0001_1110);
         assert_eq!(cpu.register.p.c, false);
         assert_eq!(cpu.register.p.z, false);
         assert_eq!(cpu.register.p.n, false);
