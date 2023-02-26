@@ -405,6 +405,31 @@ impl Cpu {
     fn clv(&mut self) {
         self.register.p.v = false;
     }
+
+    fn cmp_sub(&mut self, mode: &AddressingMode, subtracted_value: u8) {
+        let address = self.get_operand_address(mode);
+        let cmp_value = self.memory_map.read_memory_byte(address);
+
+        if subtracted_value >= cmp_value {
+            self.register.p.c = true;
+        }
+
+        let result = subtracted_value.wrapping_sub(cmp_value);
+        self.update_zero_and_negative_flags(result);
+    }
+
+    fn cmp(&mut self, mode: &AddressingMode) {
+        self.cmp_sub(mode, self.register.a);
+    }
+
+    fn cpx(&mut self, mode: &AddressingMode) {
+        self.cmp_sub(mode, self.register.x);
+    }
+
+    fn cpy(&mut self, mode: &AddressingMode) {
+        self.cmp_sub(mode, self.register.y);
+    }
+
     fn inx(&mut self) {
         self.register.x = self.register.x.wrapping_add(1);
 
@@ -525,6 +550,9 @@ impl Cpu {
                 Instruction::CLD => self.cld(),
                 Instruction::CLI => self.cli(),
                 Instruction::CLV => self.clv(),
+                Instruction::CMP => self.cmp(&opcode.addressing_mode),
+                Instruction::CPX => self.cpx(&opcode.addressing_mode),
+                Instruction::CPY => self.cpy(&opcode.addressing_mode),
                 Instruction::INX => self.inx(),
                 Instruction::LDA => self.lda(&opcode.addressing_mode),
                 Instruction::SBC => self.sbc(&opcode.addressing_mode),
@@ -978,6 +1006,79 @@ mod tests {
 
         assert_eq!(cpu.register.p.v, false);
     }
+
+    #[test]
+    fn test_0xc9_cmp_carry() {
+        let program = vec![0xc9, 0x01, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.a = 0x01;
+        cpu.interpret();
+
+        assert_eq!(cpu.register.p.c, true);
+        assert_eq!(cpu.register.p.z, true);
+        assert_eq!(cpu.register.p.n, false);
+    }
+
+    #[test]
+    fn test_0xc9_cmp_not_carry() {
+        let program = vec![0xc9, 0x02, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.a = 0x01;
+        cpu.interpret();
+
+        assert_eq!(cpu.register.p.c, false);
+        assert_eq!(cpu.register.p.z, false);
+        assert_eq!(cpu.register.p.n, true);
+    }
+
+    #[test]
+    fn test_0xe0_cpx_carry() {
+        let program = vec![0xe0, 0x01, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.x = 0x01;
+        cpu.interpret();
+
+        assert_eq!(cpu.register.p.c, true);
+        assert_eq!(cpu.register.p.z, true);
+        assert_eq!(cpu.register.p.n, false);
+    }
+
+    #[test]
+    fn test_0xe0_cpx_not_carry() {
+        let program = vec![0xe0, 0x02, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.x = 0x01;
+        cpu.interpret();
+
+        assert_eq!(cpu.register.p.c, false);
+        assert_eq!(cpu.register.p.z, false);
+        assert_eq!(cpu.register.p.n, true);
+    }
+
+    #[test]
+    fn test_0xc0_cpy_carry() {
+        let program = vec![0xc0, 0x01, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.y = 0x01;
+        cpu.interpret();
+
+        assert_eq!(cpu.register.p.c, true);
+        assert_eq!(cpu.register.p.z, true);
+        assert_eq!(cpu.register.p.n, false);
+    }
+
+    #[test]
+    fn test_0xc0_cpy_not_carry() {
+        let program = vec![0xc0, 0x02, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.y = 0x01;
+        cpu.interpret();
+
+        assert_eq!(cpu.register.p.c, false);
+        assert_eq!(cpu.register.p.z, false);
+        assert_eq!(cpu.register.p.n, true);
+    }
+
     #[test]
     fn test_inx_overflow() {
         let program = vec![0xe8, 0xe8, 0x00];
