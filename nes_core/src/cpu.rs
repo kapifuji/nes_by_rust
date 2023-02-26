@@ -496,6 +496,10 @@ impl Cpu {
         self.update_zero_and_negative_flags(self.register.y);
     }
 
+    fn nop(&mut self) {
+        // 何もしない。
+    }
+
     fn sbc(&mut self, mode: &AddressingMode) {
         self.adc_sbc_sub(mode, false);
     }
@@ -614,6 +618,7 @@ impl Cpu {
                 Instruction::LDA => self.lda(&opcode.addressing_mode),
                 Instruction::LDX => self.ldx(&opcode.addressing_mode),
                 Instruction::LDY => self.ldy(&opcode.addressing_mode),
+                Instruction::NOP => self.nop(),
                 Instruction::SBC => self.sbc(&opcode.addressing_mode),
                 Instruction::SEC => self.sec(),
                 Instruction::SED => self.sed(),
@@ -1261,6 +1266,13 @@ mod tests {
         assert_eq!(cpu.register.y, 0b1000_0000);
         assert_eq!(cpu.register.p.z, false);
         assert_eq!(cpu.register.p.n, true);
+    }
+
+    #[test]
+    fn test_nop() {
+        let program = vec![0xea, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.interpret();
     }
 
     #[test]
