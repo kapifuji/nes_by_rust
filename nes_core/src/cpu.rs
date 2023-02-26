@@ -480,6 +480,22 @@ impl Cpu {
         self.update_zero_and_negative_flags(self.register.a);
     }
 
+    fn ldx(&mut self, mode: &AddressingMode) {
+        let address = self.get_operand_address(mode);
+        let value = self.memory_map.read_memory_byte(address);
+
+        self.register.x = value;
+        self.update_zero_and_negative_flags(self.register.x);
+    }
+
+    fn ldy(&mut self, mode: &AddressingMode) {
+        let address = self.get_operand_address(mode);
+        let value = self.memory_map.read_memory_byte(address);
+
+        self.register.y = value;
+        self.update_zero_and_negative_flags(self.register.y);
+    }
+
     fn sbc(&mut self, mode: &AddressingMode) {
         self.adc_sbc_sub(mode, false);
     }
@@ -596,6 +612,8 @@ impl Cpu {
                 Instruction::INX => self.inx(),
                 Instruction::INY => self.iny(),
                 Instruction::LDA => self.lda(&opcode.addressing_mode),
+                Instruction::LDX => self.ldx(&opcode.addressing_mode),
+                Instruction::LDY => self.ldy(&opcode.addressing_mode),
                 Instruction::SBC => self.sbc(&opcode.addressing_mode),
                 Instruction::SEC => self.sec(),
                 Instruction::SED => self.sed(),
@@ -1220,6 +1238,28 @@ mod tests {
         let mut cpu = Cpu::new(&program);
         cpu.interpret();
 
+        assert_eq!(cpu.register.p.n, true);
+    }
+
+    #[test]
+    fn test_0xa2_ldx() {
+        let program = vec![0xa2, 0b1000_0000, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.interpret();
+
+        assert_eq!(cpu.register.x, 0b1000_0000);
+        assert_eq!(cpu.register.p.z, false);
+        assert_eq!(cpu.register.p.n, true);
+    }
+
+    #[test]
+    fn test_0xa0_ldy() {
+        let program = vec![0xa0, 0b1000_0000, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.interpret();
+
+        assert_eq!(cpu.register.y, 0b1000_0000);
+        assert_eq!(cpu.register.p.z, false);
         assert_eq!(cpu.register.p.n, true);
     }
 
