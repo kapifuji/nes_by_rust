@@ -430,6 +430,27 @@ impl Cpu {
         self.cmp_sub(mode, self.register.y);
     }
 
+    fn dec(&mut self, mode: &AddressingMode) {
+        let address = self.get_operand_address(mode);
+        let value = self.memory_map.read_memory_byte(address);
+
+        let result = value.wrapping_sub(1);
+        self.memory_map.write_memory_byte(address, result);
+        self.update_zero_and_negative_flags(result);
+    }
+
+    fn dex(&mut self) {
+        self.register.x = self.register.x.wrapping_sub(1);
+
+        self.update_zero_and_negative_flags(self.register.x);
+    }
+
+    fn dey(&mut self) {
+        self.register.y = self.register.y.wrapping_sub(1);
+
+        self.update_zero_and_negative_flags(self.register.y);
+    }
+
     fn inx(&mut self) {
         self.register.x = self.register.x.wrapping_add(1);
 
@@ -553,6 +574,9 @@ impl Cpu {
                 Instruction::CMP => self.cmp(&opcode.addressing_mode),
                 Instruction::CPX => self.cpx(&opcode.addressing_mode),
                 Instruction::CPY => self.cpy(&opcode.addressing_mode),
+                Instruction::DEC => self.dec(&opcode.addressing_mode),
+                Instruction::DEX => self.dex(),
+                Instruction::DEY => self.dey(),
                 Instruction::INX => self.inx(),
                 Instruction::LDA => self.lda(&opcode.addressing_mode),
                 Instruction::SBC => self.sbc(&opcode.addressing_mode),
@@ -1075,6 +1099,43 @@ mod tests {
         cpu.interpret();
 
         assert_eq!(cpu.register.p.c, false);
+        assert_eq!(cpu.register.p.z, false);
+        assert_eq!(cpu.register.p.n, true);
+    }
+
+    #[test]
+    fn test_0xc6_dec() {
+        let program = vec![0xc6, 0x02, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.memory_map.write_memory_byte(0x0002, 0x00);
+        cpu.interpret();
+
+        let result = cpu.memory_map.read_memory_byte(0x0002);
+        assert_eq!(result, 0xff);
+        assert_eq!(cpu.register.p.z, false);
+        assert_eq!(cpu.register.p.n, true);
+    }
+
+    #[test]
+    fn test_dex() {
+        let program = vec![0xca, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.x = 0;
+        cpu.interpret();
+
+        assert_eq!(cpu.register.x, 0xff);
+        assert_eq!(cpu.register.p.z, false);
+        assert_eq!(cpu.register.p.n, true);
+    }
+
+    #[test]
+    fn test_dey() {
+        let program = vec![0x88, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.y = 0;
+        cpu.interpret();
+
+        assert_eq!(cpu.register.y, 0xff);
         assert_eq!(cpu.register.p.z, false);
         assert_eq!(cpu.register.p.n, true);
     }
