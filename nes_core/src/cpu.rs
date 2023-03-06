@@ -496,6 +496,28 @@ impl Cpu {
         self.update_zero_and_negative_flags(self.register.y);
     }
 
+    fn lsr(&mut self, mode: &AddressingMode) {
+        let old_value = if *mode == AddressingMode::Accumulator {
+            self.register.a
+        } else {
+            let address = self.get_operand_address(mode);
+            self.memory_map.read_memory_byte(address)
+        };
+
+        let result = old_value >> 1;
+
+        self.register.p.c = if (old_value & 0x01) == 0 { false } else { true };
+
+        if *mode == AddressingMode::Accumulator {
+            self.register.a = result;
+        } else {
+            let address = self.get_operand_address(mode);
+            self.memory_map.write_memory_byte(address, result);
+        };
+
+        self.update_zero_and_negative_flags(result);
+    }
+
     fn nop(&mut self) {
         // 何もしない。
     }
@@ -618,6 +640,7 @@ impl Cpu {
                 Instruction::LDA => self.lda(&opcode.addressing_mode),
                 Instruction::LDX => self.ldx(&opcode.addressing_mode),
                 Instruction::LDY => self.ldy(&opcode.addressing_mode),
+                Instruction::LSR => self.lsr(&opcode.addressing_mode),
                 Instruction::NOP => self.nop(),
                 Instruction::SBC => self.sbc(&opcode.addressing_mode),
                 Instruction::SEC => self.sec(),
@@ -1266,6 +1289,33 @@ mod tests {
         assert_eq!(cpu.register.y, 0b1000_0000);
         assert_eq!(cpu.register.p.z, false);
         assert_eq!(cpu.register.p.n, true);
+    }
+
+    #[test]
+    fn test_0x4a_lsr() {
+        let program = vec![0x4a, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.a = 0b1100_1111;
+        cpu.interpret();
+
+        assert_eq!(cpu.register.a, 0b0110_0111);
+        assert_eq!(cpu.register.p.c, true);
+        assert_eq!(cpu.register.p.z, false);
+        assert_eq!(cpu.register.p.n, false);
+    }
+
+    #[test]
+    fn test_0x46_lsr() {
+        let program = vec![0x46, 0x10, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.memory_map.write_memory_byte(0x0010, 0b0000_1110);
+        cpu.interpret();
+
+        let result = cpu.memory_map.read_memory_byte(0x0010);
+        assert_eq!(result, 0b0000_0111);
+        assert_eq!(cpu.register.p.c, false);
+        assert_eq!(cpu.register.p.z, false);
+        assert_eq!(cpu.register.p.n, false);
     }
 
     #[test]
