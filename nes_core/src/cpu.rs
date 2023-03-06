@@ -451,6 +451,14 @@ impl Cpu {
         self.update_zero_and_negative_flags(self.register.y);
     }
 
+    fn eor(&mut self, mode: &AddressingMode) {
+        let address = self.get_operand_address(mode);
+        let value = self.memory_map.read_memory_byte(address);
+
+        self.register.a ^= value;
+        self.update_zero_and_negative_flags(self.register.a);
+    }
+
     fn inc(&mut self, mode: &AddressingMode) {
         let address = self.get_operand_address(mode);
         let value = self.memory_map.read_memory_byte(address);
@@ -520,6 +528,14 @@ impl Cpu {
 
     fn nop(&mut self) {
         // 何もしない。
+    }
+
+    fn ora(&mut self, mode: &AddressingMode) {
+        let address = self.get_operand_address(mode);
+        let value = self.memory_map.read_memory_byte(address);
+
+        self.register.a |= value;
+        self.update_zero_and_negative_flags(self.register.a);
     }
 
     fn rol(&mut self, mode: &AddressingMode) {
@@ -686,6 +702,7 @@ impl Cpu {
                 Instruction::DEC => self.dec(&opcode.addressing_mode),
                 Instruction::DEX => self.dex(),
                 Instruction::DEY => self.dey(),
+                Instruction::EOR => self.eor(&opcode.addressing_mode),
                 Instruction::INC => self.inc(&opcode.addressing_mode),
                 Instruction::INX => self.inx(),
                 Instruction::INY => self.iny(),
@@ -694,6 +711,7 @@ impl Cpu {
                 Instruction::LDY => self.ldy(&opcode.addressing_mode),
                 Instruction::LSR => self.lsr(&opcode.addressing_mode),
                 Instruction::NOP => self.nop(),
+                Instruction::ORA => self.ora(&opcode.addressing_mode),
                 Instruction::ROL => self.rol(&opcode.addressing_mode),
                 Instruction::ROR => self.ror(&opcode.addressing_mode),
                 Instruction::SBC => self.sbc(&opcode.addressing_mode),
@@ -1258,6 +1276,18 @@ mod tests {
     }
 
     #[test]
+    fn test_0x49_eor() {
+        let program = vec![0x49, 0x0f, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.a = 0xff;
+        cpu.interpret();
+
+        assert_eq!(cpu.register.a, 0xf0);
+        assert_eq!(cpu.register.p.z, false);
+        assert_eq!(cpu.register.p.n, true);
+    }
+
+    #[test]
     fn test_0xe6_inc() {
         let program = vec![0xe6, 0x02, 0x00];
         let mut cpu = Cpu::new(&program);
@@ -1377,6 +1407,18 @@ mod tests {
         let program = vec![0xea, 0x00];
         let mut cpu = Cpu::new(&program);
         cpu.interpret();
+    }
+
+    #[test]
+    fn test_0x09_ora() {
+        let program = vec![0x09, 0x55, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.a = 0x80;
+        cpu.interpret();
+
+        assert_eq!(cpu.register.a, 0xd5);
+        assert_eq!(cpu.register.p.z, false);
+        assert_eq!(cpu.register.p.n, true);
     }
 
     #[test]
