@@ -1574,6 +1574,17 @@ mod tests {
     }
 
     #[test]
+    fn test_0x96_stx() {
+        let program = vec![0x96, 0x10, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.x = 100;
+        cpu.register.y = 0xff;
+        cpu.interpret();
+
+        assert_eq!(cpu.memory_map.read_memory_byte(0x000f), 100);
+    }
+
+    #[test]
     fn test_0x84_sty_store_y() {
         let program = vec![0x84, 0x10, 0x00];
         let mut cpu = Cpu::new(&program);
