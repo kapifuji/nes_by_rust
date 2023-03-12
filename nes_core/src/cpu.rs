@@ -368,6 +368,25 @@ impl Cpu {
         self.bxx_sub(mode, self.register.p.z, true);
     }
 
+    fn bit(&mut self, mode: &AddressingMode) {
+        let memory = self.get_operand_address(mode);
+        let value = self.memory_map.read_memory_byte(memory);
+
+        let reault = value & self.register.a;
+
+        self.register.p.z = if reault == 0x00 { true } else { false };
+
+        self.register.p.v = if value & 0b0100_0000 != 0x00 {
+            true
+        } else {
+            false
+        };
+
+        self.register.p.n = if value & 0b1000_0000 != 0x00 {
+            true
+        } else {
+            false
+        };
     }
 
     fn bmi(&mut self, mode: &AddressingMode) {
@@ -686,6 +705,7 @@ impl Cpu {
                 Instruction::BCC => self.bcc(&opcode.addressing_mode),
                 Instruction::BCS => self.bcs(&opcode.addressing_mode),
                 Instruction::BEQ => self.beq(&opcode.addressing_mode),
+                Instruction::BIT => self.bit(&opcode.addressing_mode),
                 Instruction::BMI => self.bmi(&opcode.addressing_mode),
                 Instruction::BNE => self.bne(&opcode.addressing_mode),
                 Instruction::BPL => self.bpl(&opcode.addressing_mode),
@@ -1004,6 +1024,19 @@ mod tests {
         cpu.interpret();
 
         assert_eq!(cpu.register.a, 0b0000_0001);
+    }
+
+    #[test]
+    fn test_0x24_bit() {
+        let program = vec![0x24, 0x10, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.memory_map.write_memory_byte(0x10, 0b1100_0000);
+        cpu.register.a = 0x00;
+        cpu.interpret();
+
+        assert_eq!(cpu.register.p.z, true);
+        assert_eq!(cpu.register.p.v, true);
+        assert_eq!(cpu.register.p.n, true);
     }
 
     #[test]
