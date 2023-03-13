@@ -429,8 +429,8 @@ impl Cpu {
     }
 
     fn bit(&mut self, mode: &AddressingMode) {
-        let memory = self.get_operand_address(mode);
-        let value = self.memory_map.read_memory_byte(memory);
+        let address = self.get_operand_address(mode);
+        let value = self.memory_map.read_memory_byte(address);
 
         let reault = value & self.register.a;
 
