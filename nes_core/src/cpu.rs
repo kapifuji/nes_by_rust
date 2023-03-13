@@ -250,7 +250,10 @@ impl Cpu {
                 let lo = ((base & 0x00ff) as u8).wrapping_add(self.register.y);
                 (base & 0xff00) + lo as u16
             }
-            AddressingMode::Indirect => todo!("not impl"),
+            AddressingMode::Indirect => {
+                let address = self.memory_map.read_memory_word(self.register.pc);
+                self.memory_map.read_memory_word(address as u16)
+            }
             AddressingMode::IndirectX => {
                 let base = self.memory_map.read_memory_byte(self.register.pc);
                 let address = base.wrapping_add(self.register.x);
