@@ -1,6 +1,15 @@
 use crate::opcode::{create_opcodes_map, Instruction, Opcode};
 use std::collections::HashMap;
 
+const BIT0: u8 = 0b0000_0001;
+const BIT1: u8 = 0b0000_0010;
+const BIT2: u8 = 0b0000_0100;
+const BIT3: u8 = 0b0000_1000;
+const BIT4: u8 = 0b0001_0000;
+const BIT5: u8 = 0b0010_0000;
+const BIT6: u8 = 0b0100_0000;
+const BIT7: u8 = 0b1000_0000;
+
 #[derive(Default)]
 pub struct PpuRegister {
     ppu_control: u8,
@@ -88,6 +97,54 @@ impl Default for StatusRegister {
 impl StatusRegister {
     pub fn new() -> Self {
         Default::default()
+    }
+
+    pub fn write(&mut self, byte: u8) {
+        self.n = if (byte & BIT7) != 0 { true } else { false };
+        self.v = if (byte & BIT6) != 0 { true } else { false };
+        self.r = if (byte & BIT5) != 0 { true } else { false };
+        self.b = if (byte & BIT4) != 0 { true } else { false };
+        self.d = if (byte & BIT3) != 0 { true } else { false };
+        self.i = if (byte & BIT2) != 0 { true } else { false };
+        self.z = if (byte & BIT1) != 0 { true } else { false };
+        self.c = if (byte & BIT0) != 0 { true } else { false };
+    }
+
+    pub fn read(&self) -> u8 {
+        let mut result: u8 = 0;
+        if self.n == true {
+            result |= BIT7;
+        };
+
+        if self.v == true {
+            result |= BIT6;
+        }
+
+        if self.r == true {
+            result |= BIT5;
+        }
+
+        if self.b == true {
+            result |= BIT4;
+        }
+
+        if self.d == true {
+            result |= BIT3;
+        }
+
+        if self.i == true {
+            result |= BIT2;
+        }
+
+        if self.z == true {
+            result |= BIT1;
+        }
+
+        if self.c == true {
+            result |= BIT0;
+        }
+
+        result
     }
 }
 
