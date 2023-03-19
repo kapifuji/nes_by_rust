@@ -559,6 +559,11 @@ impl Cpu {
         self.update_zero_and_negative_flags(self.register.y);
     }
 
+    fn jmp(&mut self, mode: &AddressingMode) {
+        let address = self.get_operand_address(mode);
+        self.register.pc = address;
+    }
+
     fn lda(&mut self, mode: &AddressingMode) {
         let address = self.get_operand_address(mode);
         let value = self.memory_map.read_memory_byte(address);
@@ -786,6 +791,10 @@ impl Cpu {
                 Instruction::INC => self.inc(&opcode.addressing_mode),
                 Instruction::INX => self.inx(),
                 Instruction::INY => self.iny(),
+                Instruction::JMP => {
+                    self.jmp(&opcode.addressing_mode);
+                    continue; // PCを動かさない。
+                }
                 Instruction::LDA => self.lda(&opcode.addressing_mode),
                 Instruction::LDX => self.ldx(&opcode.addressing_mode),
                 Instruction::LDY => self.ldy(&opcode.addressing_mode),
@@ -1415,6 +1424,33 @@ mod tests {
         assert_eq!(cpu.register.y, 0x00);
         assert_eq!(cpu.register.p.z, true);
         assert_eq!(cpu.register.p.n, false);
+    }
+
+    #[test]
+    fn test_0x4c_jmp() {
+        let program = vec![
+            0x4c, 0x0a, 0x80, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0x38, 0x00, 0xea, 0xea,
+            0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea,
+            0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0x00,
+        ];
+        let mut cpu = Cpu::new(&program);
+        cpu.interpret();
+
+        assert_eq!(cpu.register.p.c, true);
+    }
+
+    #[test]
+    fn test_0x6c_jmp() {
+        let program = vec![
+            0x6c, 0x00, 0x02, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0x38, 0x00, 0xea, 0xea,
+            0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea,
+            0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0x00,
+        ];
+        let mut cpu = Cpu::new(&program);
+        cpu.memory_map.write_memory_word(0x0200, 0x800a);
+        cpu.interpret();
+
+        assert_eq!(cpu.register.p.c, true);
     }
 
     #[test]
