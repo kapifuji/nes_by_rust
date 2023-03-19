@@ -564,6 +564,16 @@ impl Cpu {
         self.register.pc = address;
     }
 
+    fn jsr(&mut self, mode: &AddressingMode) {
+        self.register.sp -= 2;
+        let sp = 0x0100 as u16 + self.register.sp as u16;
+        let return_pc = self.register.pc + 2; // +3必要だが、事前に+1されている。
+        self.memory_map.write_memory_word(sp, return_pc);
+
+        let address = self.get_operand_address(mode);
+        self.register.pc = address;
+    }
+
     fn lda(&mut self, mode: &AddressingMode) {
         let address = self.get_operand_address(mode);
         let value = self.memory_map.read_memory_byte(address);
@@ -701,6 +711,17 @@ impl Cpu {
         self.update_zero_and_negative_flags(result);
     }
 
+    fn rti(&mut self) {
+        self.plp(); // pull Processor Status
+        self.rts(); // pull Program Counter
+    }
+
+    fn rts(&mut self) {
+        let sp = 0x0100 as u16 + self.register.sp as u16;
+        self.register.pc = self.memory_map.read_memory_word(sp);
+        self.register.sp += 2;
+    }
+
     fn sbc(&mut self, mode: &AddressingMode) {
         self.adc_sbc_sub(mode, false);
     }
@@ -822,6 +843,10 @@ impl Cpu {
                     self.jmp(&opcode.addressing_mode);
                     continue; // PCを動かさない。
                 }
+                Instruction::JSR => {
+                    self.jsr(&opcode.addressing_mode);
+                    continue; // PCを動かさない。
+                }
                 Instruction::LDA => self.lda(&opcode.addressing_mode),
                 Instruction::LDX => self.ldx(&opcode.addressing_mode),
                 Instruction::LDY => self.ldy(&opcode.addressing_mode),
@@ -834,6 +859,14 @@ impl Cpu {
                 Instruction::PLP => self.plp(),
                 Instruction::ROL => self.rol(&opcode.addressing_mode),
                 Instruction::ROR => self.ror(&opcode.addressing_mode),
+                Instruction::RTI => {
+                    self.rti();
+                    continue; // PCを動かさない。
+                }
+                Instruction::RTS => {
+                    self.rts();
+                    continue; // PCを動かさない。
+                }
                 Instruction::SBC => self.sbc(&opcode.addressing_mode),
                 Instruction::SEC => self.sec(),
                 Instruction::SED => self.sed(),
@@ -847,7 +880,6 @@ impl Cpu {
                 Instruction::TXA => self.txa(),
                 Instruction::TXS => self.txs(),
                 Instruction::TYA => self.tya(),
-                _ => todo!("not impl"),
             }
 
             self.register.pc += opcode.bytes as u16 - 1;
@@ -1485,6 +1517,21 @@ mod tests {
     }
 
     #[test]
+    fn test_jsr() {
+        let program = vec![
+            0x20, 0x0a, 0x80, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0x38, 0x00, 0xea, 0xea,
+            0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea,
+            0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0x00,
+        ];
+        let mut cpu = Cpu::new(&program);
+        cpu.interpret();
+
+        assert_eq!(cpu.register.sp, 0xfb);
+        assert_eq!(cpu.memory_map.read_memory_word(0x01fb), 0x8003);
+        assert_eq!(cpu.register.p.c, true);
+    }
+
+    #[test]
     fn test_0xa9_lda_immidiate_load_data() {
         let program = vec![0xa9, 0x05, 0x00];
         let mut cpu = Cpu::new(&program);
@@ -1683,6 +1730,40 @@ mod tests {
         assert_eq!(cpu.register.p.c, false);
         assert_eq!(cpu.register.p.z, false);
         assert_eq!(cpu.register.p.n, false);
+    }
+
+    #[test]
+    fn test_rti() {
+        let program = vec![
+            0x40, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0x38, 0x00, 0xea, 0xea,
+            0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea,
+            0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0x00,
+        ];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.sp = 0xfa;
+        cpu.memory_map.write_memory_word(0x01fb, 0x800a);
+        cpu.memory_map.write_memory_byte(0x01fa, 0b01010101);
+        cpu.interpret();
+
+        assert_eq!(cpu.register.sp, 0xfd);
+        assert_eq!(cpu.register.p.c, true);
+        assert_eq!(cpu.register.p.read(), 0b01010101);
+    }
+
+    #[test]
+    fn test_rts() {
+        let program = vec![
+            0x60, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0x38, 0x00, 0xea, 0xea,
+            0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea,
+            0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0x00,
+        ];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.sp = 0xfb;
+        cpu.memory_map.write_memory_word(0x01fb, 0x800a);
+        cpu.interpret();
+
+        assert_eq!(cpu.register.sp, 0xfd);
+        assert_eq!(cpu.register.p.c, true);
     }
 
     #[test]
