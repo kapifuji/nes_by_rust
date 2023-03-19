@@ -622,6 +622,33 @@ impl Cpu {
         self.update_zero_and_negative_flags(self.register.a);
     }
 
+    fn pha(&mut self) {
+        self.register.sp -= 1;
+        let sp = 0x0100 as u16 + self.register.sp as u16;
+        self.memory_map.write_memory_byte(sp, self.register.a);
+    }
+
+    fn php(&mut self) {
+        self.register.sp -= 1;
+        let sp = 0x0100 as u16 + self.register.sp as u16;
+        self.memory_map
+            .write_memory_byte(sp, self.register.p.read());
+    }
+
+    fn pla(&mut self) {
+        let sp = 0x0100 as u16 + self.register.sp as u16;
+        self.register.a = self.memory_map.read_memory_byte(sp);
+        self.register.sp += 1;
+
+        self.update_zero_and_negative_flags(self.register.a);
+    }
+
+    fn plp(&mut self) {
+        let sp = 0x0100 as u16 + self.register.sp as u16;
+        self.register.p.write(self.memory_map.read_memory_byte(sp));
+        self.register.sp += 1;
+    }
+
     fn rol(&mut self, mode: &AddressingMode) {
         let old_value = if *mode == AddressingMode::Accumulator {
             self.register.a
@@ -801,6 +828,10 @@ impl Cpu {
                 Instruction::LSR => self.lsr(&opcode.addressing_mode),
                 Instruction::NOP => self.nop(),
                 Instruction::ORA => self.ora(&opcode.addressing_mode),
+                Instruction::PHA => self.pha(),
+                Instruction::PHP => self.php(),
+                Instruction::PLA => self.pla(),
+                Instruction::PLP => self.plp(),
                 Instruction::ROL => self.rol(&opcode.addressing_mode),
                 Instruction::ROR => self.ror(&opcode.addressing_mode),
                 Instruction::SBC => self.sbc(&opcode.addressing_mode),
@@ -1548,6 +1579,54 @@ mod tests {
         assert_eq!(cpu.register.a, 0xd5);
         assert_eq!(cpu.register.p.z, false);
         assert_eq!(cpu.register.p.n, true);
+    }
+
+    #[test]
+    fn test_pha() {
+        let program = vec![0x48, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.a = 0x80;
+        cpu.interpret();
+
+        assert_eq!(cpu.register.sp, 0xfc);
+        assert_eq!(cpu.memory_map.read_memory_byte(0x01fc), 0x80);
+    }
+
+    #[test]
+    fn test_php() {
+        let program = vec![0x08, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.p.write(0b01010101);
+        cpu.interpret();
+
+        assert_eq!(cpu.register.sp, 0xfc);
+        assert_eq!(cpu.memory_map.read_memory_byte(0x01fc), 0b01010101);
+    }
+
+    #[test]
+    fn test_pla() {
+        let program = vec![0x68, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.sp = 0xfc;
+        cpu.memory_map.write_memory_word(0x01fc, 0x80);
+        cpu.interpret();
+
+        assert_eq!(cpu.register.sp, 0xfd);
+        assert_eq!(cpu.register.a, 0x80);
+        assert_eq!(cpu.register.p.z, false);
+        assert_eq!(cpu.register.p.n, true);
+    }
+
+    #[test]
+    fn test_plp() {
+        let program = vec![0x28, 0x00];
+        let mut cpu = Cpu::new(&program);
+        cpu.register.sp = 0xfc;
+        cpu.memory_map.write_memory_word(0x01fc, 0b01010101);
+        cpu.interpret();
+
+        assert_eq!(cpu.register.sp, 0xfd);
+        assert_eq!(cpu.register.p.read(), 0b01010101);
     }
 
     #[test]
