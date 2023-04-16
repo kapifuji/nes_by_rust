@@ -1,4 +1,8 @@
-use crate::opcode::{create_opcodes_map, Instruction, Opcode};
+use crate::{
+    bus::Bus,
+    opcode::{create_opcodes_map, Instruction, Opcode},
+    rom::Rom,
+};
 use std::collections::HashMap;
 
 const BIT0: u8 = 0b0000_0001;
@@ -148,91 +152,6 @@ impl StatusRegister {
     }
 }
 
-struct CpuMemory {
-    /// 0x0000 ~ 0x07FF (0x0100 ~ 0x01ff is stack)
-    wram: [u8; 0x800],
-    /// 0x2000 ~ 0x2007
-    ppu_register: PpuRegister,
-    /// 0x8000 ~ 0xFFFF
-    prg_rom: [u8; 0x8000],
-}
-impl CpuMemory {
-    pub fn new(prg_rom_data: &Vec<u8>) -> Self {
-        let wram: [u8; 0x800] = [0; 0x800];
-        let ppu_register = PpuRegister::default();
-        let mut prg_rom: [u8; 0x8000] = [0; 0x8000];
-
-        for i in 0..prg_rom.len() {
-            if i >= prg_rom_data.len() {
-                break;
-            }
-            prg_rom[i] = prg_rom_data[i];
-        }
-
-        Self {
-            wram,
-            ppu_register,
-            prg_rom,
-        }
-    }
-
-    pub fn read_memory_byte(&self, address: u16) -> u8 {
-        match address {
-            0..=0x7fe => self.wram[address as usize],
-            0x2000..=0x2006 => todo!(),
-            0x8000..=0xfffe => self.prg_rom[(address - 0x8000) as usize],
-            _ => panic!("unexpected address: {}", address),
-        }
-    }
-
-    pub fn read_memory_word(&self, address: u16) -> u16 {
-        match address {
-            0..=0x7fe => {
-                let lo = self.wram[address as usize];
-                let hi = self.wram[(address as usize) + 1];
-                (lo as u16) + ((hi as u16) << 8)
-            }
-            0x2000..=0x2007 => todo!(),
-            0x8000..=0xfffe => {
-                let index = address - 0x8000;
-                let lo = self.prg_rom[index as usize];
-                let hi = self.prg_rom[(index as usize) + 1];
-                (lo as u16) + ((hi as u16) << 8)
-            }
-            _ => panic!("unexpected address: {}", address),
-        }
-    }
-
-    pub fn write_memory_byte(&mut self, address: u16, value: u8) {
-        let write_ref = match address {
-            0..=0x7fe => &mut self.wram[address as usize],
-            0x2000..=0x2006 => todo!(),
-            0x8000..=0xfffe => &mut self.prg_rom[(address - 0x8000) as usize],
-            _ => panic!("unexpected address: {}", address),
-        };
-        *write_ref = value;
-    }
-
-    pub fn write_memory_word(&mut self, address: u16, value: u16) {
-        let lo = (value & 0x00ff) as u8;
-        let hi = ((value & 0xff00) >> 8) as u8;
-
-        match address {
-            0..=0x7fe => {
-                self.wram[address as usize] = lo;
-                self.wram[(address as usize) + 1] = hi;
-            }
-            0x2000..=0x2007 => todo!(),
-            0x8000..=0xfffe => {
-                let index = address - 0x8000;
-                self.prg_rom[index as usize] = lo;
-                self.prg_rom[(index as usize) + 1] = hi;
-            }
-            _ => panic!("unexpected address: {}", address),
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AddressingMode {
     Accumulator,
@@ -252,25 +171,39 @@ pub enum AddressingMode {
 
 pub struct Cpu {
     register: CpuRegister,
-    memory_map: CpuMemory,
+    bus: Bus,
     opcodes: HashMap<u8, Opcode>,
 }
 
 impl Cpu {
-    pub fn new(prg_rom_data: &Vec<u8>) -> Cpu {
-        let register = CpuRegister::new();
-        let memory_map = CpuMemory::new(&prg_rom_data);
+    pub fn new(rom: &Rom) -> Cpu {
+        let mut register = CpuRegister::new();
+        let bus = Bus::new(&rom);
         let opcodes = create_opcodes_map();
+
+        register.pc = bus.read_memory_word(0xfffc);
 
         Self {
             register,
-            memory_map,
+            bus,
             opcodes,
         }
     }
 
-    pub fn tick() {
-        todo!()
+    pub fn read_memory_byte(&self, address: u16) -> u8 {
+        self.bus.read_memory_byte(address)
+    }
+
+    pub fn read_memory_word(&self, address: u16) -> u16 {
+        self.bus.read_memory_word(address)
+    }
+
+    pub fn write_memory_byte(&mut self, address: u16, value: u8) {
+        self.bus.write_memory_byte(address, value)
+    }
+
+    pub fn write_memory_word(&mut self, address: u16, value: u16) {
+        self.bus.write_memory_word(address, value)
     }
 
     pub fn get_ppu_register() -> PpuRegister {
@@ -279,24 +212,24 @@ impl Cpu {
 
     pub fn reset(&mut self) {
         self.register = CpuRegister::new();
-        self.register.pc = self.memory_map.read_memory_word(0xfffc);
+        self.register.pc = self.read_memory_word(0xfffc);
     }
 
     /// アドレッシングモードに応じたアドレスを返します。
     fn get_operand_address(&self, mode: &AddressingMode) -> u16 {
         match mode {
             AddressingMode::Immediate => self.register.pc,
-            AddressingMode::ZeroPage => self.memory_map.read_memory_byte(self.register.pc) as u16,
+            AddressingMode::ZeroPage => self.read_memory_byte(self.register.pc) as u16,
             AddressingMode::ZeroPageX => {
-                let base = self.memory_map.read_memory_byte(self.register.pc);
+                let base = self.read_memory_byte(self.register.pc);
                 base.wrapping_add(self.register.x) as u16
             }
             AddressingMode::ZeroPageY => {
-                let base = self.memory_map.read_memory_byte(self.register.pc);
+                let base = self.read_memory_byte(self.register.pc);
                 base.wrapping_add(self.register.y) as u16
             }
             AddressingMode::Relative => self.register.pc,
-            AddressingMode::Absolute => self.memory_map.read_memory_word(self.register.pc),
+            AddressingMode::Absolute => self.read_memory_word(self.register.pc),
             AddressingMode::AbsoluteX => {
                 let base = self.memory_map.read_memory_word(self.register.pc);
                 let lo = ((base & 0x00ff) as u8).wrapping_add(self.register.x);
@@ -333,9 +266,9 @@ impl Cpu {
     fn adc_sbc_sub(&mut self, mode: &AddressingMode, is_adc: bool) {
         let address = self.get_operand_address(mode);
         let value = if is_adc == true {
-            self.memory_map.read_memory_byte(address)
+            self.read_memory_byte(address)
         } else {
-            255 - self.memory_map.read_memory_byte(address)
+            255 - self.read_memory_byte(address)
         };
 
         let old_a = self.register.a;
@@ -374,7 +307,7 @@ impl Cpu {
 
     fn and(&mut self, mode: &AddressingMode) {
         let address = self.get_operand_address(mode);
-        let value = self.memory_map.read_memory_byte(address);
+        let value = self.read_memory_byte(address);
 
         self.register.a &= value;
 
@@ -386,7 +319,7 @@ impl Cpu {
             self.register.a
         } else {
             let address = self.get_operand_address(mode);
-            self.memory_map.read_memory_byte(address)
+            self.read_memory_byte(address)
         };
 
         let result = old_value << 1;
@@ -397,7 +330,7 @@ impl Cpu {
             self.register.a = result
         } else {
             let address = self.get_operand_address(mode);
-            self.memory_map.write_memory_byte(address, result);
+            self.write_memory_byte(address, result);
         };
 
         self.update_zero_and_negative_flags(result);
@@ -405,7 +338,7 @@ impl Cpu {
 
     fn bxx_sub(&mut self, mode: &AddressingMode, target_status: bool, trigger: bool) {
         let address = self.get_operand_address(mode);
-        let offset = self.memory_map.read_memory_byte(address);
+        let offset = self.read_memory_byte(address);
 
         if target_status == trigger {
             if offset >= 0x80 {
@@ -430,7 +363,7 @@ impl Cpu {
 
     fn bit(&mut self, mode: &AddressingMode) {
         let address = self.get_operand_address(mode);
-        let value = self.memory_map.read_memory_byte(address);
+        let value = self.read_memory_byte(address);
 
         let reault = value & self.register.a;
 
@@ -487,7 +420,7 @@ impl Cpu {
 
     fn cmp_sub(&mut self, mode: &AddressingMode, subtracted_value: u8) {
         let address = self.get_operand_address(mode);
-        let cmp_value = self.memory_map.read_memory_byte(address);
+        let cmp_value = self.read_memory_byte(address);
 
         if subtracted_value >= cmp_value {
             self.register.p.c = true;
@@ -511,10 +444,10 @@ impl Cpu {
 
     fn dec(&mut self, mode: &AddressingMode) {
         let address = self.get_operand_address(mode);
-        let value = self.memory_map.read_memory_byte(address);
+        let value = self.read_memory_byte(address);
 
         let result = value.wrapping_sub(1);
-        self.memory_map.write_memory_byte(address, result);
+        self.write_memory_byte(address, result);
         self.update_zero_and_negative_flags(result);
     }
 
@@ -532,7 +465,7 @@ impl Cpu {
 
     fn eor(&mut self, mode: &AddressingMode) {
         let address = self.get_operand_address(mode);
-        let value = self.memory_map.read_memory_byte(address);
+        let value = self.read_memory_byte(address);
 
         self.register.a ^= value;
         self.update_zero_and_negative_flags(self.register.a);
@@ -540,10 +473,10 @@ impl Cpu {
 
     fn inc(&mut self, mode: &AddressingMode) {
         let address = self.get_operand_address(mode);
-        let value = self.memory_map.read_memory_byte(address);
+        let value = self.read_memory_byte(address);
 
         let result = value.wrapping_add(1);
-        self.memory_map.write_memory_byte(address, result);
+        self.write_memory_byte(address, result);
         self.update_zero_and_negative_flags(result);
     }
 
@@ -576,7 +509,7 @@ impl Cpu {
 
     fn lda(&mut self, mode: &AddressingMode) {
         let address = self.get_operand_address(mode);
-        let value = self.memory_map.read_memory_byte(address);
+        let value = self.read_memory_byte(address);
 
         self.register.a = value;
         self.update_zero_and_negative_flags(self.register.a);
@@ -584,7 +517,7 @@ impl Cpu {
 
     fn ldx(&mut self, mode: &AddressingMode) {
         let address = self.get_operand_address(mode);
-        let value = self.memory_map.read_memory_byte(address);
+        let value = self.read_memory_byte(address);
 
         self.register.x = value;
         self.update_zero_and_negative_flags(self.register.x);
@@ -592,7 +525,7 @@ impl Cpu {
 
     fn ldy(&mut self, mode: &AddressingMode) {
         let address = self.get_operand_address(mode);
-        let value = self.memory_map.read_memory_byte(address);
+        let value = self.read_memory_byte(address);
 
         self.register.y = value;
         self.update_zero_and_negative_flags(self.register.y);
@@ -603,7 +536,7 @@ impl Cpu {
             self.register.a
         } else {
             let address = self.get_operand_address(mode);
-            self.memory_map.read_memory_byte(address)
+            self.read_memory_byte(address)
         };
 
         let result = old_value >> 1;
@@ -614,7 +547,7 @@ impl Cpu {
             self.register.a = result;
         } else {
             let address = self.get_operand_address(mode);
-            self.memory_map.write_memory_byte(address, result);
+            self.write_memory_byte(address, result);
         };
 
         self.update_zero_and_negative_flags(result);
@@ -626,7 +559,7 @@ impl Cpu {
 
     fn ora(&mut self, mode: &AddressingMode) {
         let address = self.get_operand_address(mode);
-        let value = self.memory_map.read_memory_byte(address);
+        let value = self.read_memory_byte(address);
 
         self.register.a |= value;
         self.update_zero_and_negative_flags(self.register.a);
@@ -664,7 +597,7 @@ impl Cpu {
             self.register.a
         } else {
             let address = self.get_operand_address(mode);
-            self.memory_map.read_memory_byte(address)
+            self.read_memory_byte(address)
         };
 
         let result = if self.register.p.c == true {
@@ -679,7 +612,7 @@ impl Cpu {
             self.register.a = result
         } else {
             let address = self.get_operand_address(mode);
-            self.memory_map.write_memory_byte(address, result);
+            self.write_memory_byte(address, result);
         };
 
         self.update_zero_and_negative_flags(result);
@@ -690,7 +623,7 @@ impl Cpu {
             self.register.a
         } else {
             let address = self.get_operand_address(mode);
-            self.memory_map.read_memory_byte(address)
+            self.read_memory_byte(address)
         };
 
         let result = if self.register.p.c == true {
@@ -705,7 +638,7 @@ impl Cpu {
             self.register.a = result;
         } else {
             let address = self.get_operand_address(mode);
-            self.memory_map.write_memory_byte(address, result);
+            self.write_memory_byte(address, result);
         };
 
         self.update_zero_and_negative_flags(result);
@@ -740,17 +673,17 @@ impl Cpu {
 
     fn sta(&mut self, mode: &AddressingMode) {
         let address = self.get_operand_address(mode);
-        self.memory_map.write_memory_byte(address, self.register.a);
+        self.write_memory_byte(address, self.register.a);
     }
 
     fn stx(&mut self, mode: &AddressingMode) {
         let address = self.get_operand_address(mode);
-        self.memory_map.write_memory_byte(address, self.register.x);
+        self.write_memory_byte(address, self.register.x);
     }
 
     fn sty(&mut self, mode: &AddressingMode) {
         let address = self.get_operand_address(mode);
-        self.memory_map.write_memory_byte(address, self.register.y);
+        self.write_memory_byte(address, self.register.y);
     }
 
     fn tax(&mut self) {
