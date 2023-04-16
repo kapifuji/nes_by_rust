@@ -306,19 +306,13 @@ impl Cpu {
         self.update_zero_and_negative_flags(self.register.a);
 
         // update c
-        if is_adc == true {
-            if ret.1 == true {
-                self.register.p.c = true;
-            }
-        } else {
-            if ret.1 == false {
-                self.register.p.c = false;
-            }
-        }
+        self.register.p.c = if ret.1 == true { true } else { false };
 
         // update v (ref. http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html)
-        if ((old_a ^ ret.0) & (value ^ ret.0) & 0x80) != 0 {
-            self.register.p.v = true;
+        self.register.p.v = if ((old_a ^ ret.0) & (value ^ ret.0) & 0x80) != 0 {
+            true
+        } else {
+            false
         }
     }
 
@@ -365,7 +359,7 @@ impl Cpu {
             if offset >= 0x80 {
                 self.register.pc += (offset - 0x80) as u16;
             } else {
-                self.register.pc -= offset as u16;
+                self.register.pc += offset as u16;
             }
         }
     }
@@ -443,9 +437,11 @@ impl Cpu {
         let address = self.get_operand_address(mode);
         let cmp_value = self.read_memory_byte(address);
 
-        if subtracted_value >= cmp_value {
-            self.register.p.c = true;
-        }
+        self.register.p.c = if subtracted_value >= cmp_value {
+            true
+        } else {
+            false
+        };
 
         let result = subtracted_value.wrapping_sub(cmp_value);
         self.update_zero_and_negative_flags(result);
