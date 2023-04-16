@@ -1,4 +1,5 @@
 use crate::cpu::AddressingMode;
+use core::fmt;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -115,6 +116,10 @@ pub enum Instruction {
     TXS,
     /// Transfer Y to Stack Pointer
     TYA,
+impl fmt::Display for Instruction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }
 
 // 本来はグローバル変数で置きたいところだが、std以外の機能が必要になる。
