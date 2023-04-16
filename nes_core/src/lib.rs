@@ -1,4 +1,4 @@
-mod cpu;
+mod bus;
 mod opcode;
 mod ppu;
 mod rom;
@@ -10,8 +10,11 @@ pub struct Nes {
 }
 
 impl Nes {
-    pub fn new(rom_data: Vec<u8>) -> Nes {
-        todo!()
+    pub fn new(rom_data: &Vec<u8>) -> Nes {
+        let rom = rom::Rom::new(rom_data);
+        Nes {
+            cpu: cpu::Cpu::new(&rom),
+        }
     }
 
     pub fn tick_cpu() {
