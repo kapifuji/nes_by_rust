@@ -231,30 +231,51 @@ impl Cpu {
             AddressingMode::Relative => self.register.pc,
             AddressingMode::Absolute => self.read_memory_word(self.register.pc),
             AddressingMode::AbsoluteX => {
-                let base = self.memory_map.read_memory_word(self.register.pc);
-                let lo = ((base & 0x00ff) as u8).wrapping_add(self.register.x);
-                (base & 0xff00) + lo as u16
+                let base = self.read_memory_word(self.register.pc);
+                base.wrapping_add(self.register.x as u16)
             }
             AddressingMode::AbsoluteY => {
-                let base = self.memory_map.read_memory_word(self.register.pc);
-                let lo = ((base & 0x00ff) as u8).wrapping_add(self.register.y);
-                (base & 0xff00) + lo as u16
+                let base = self.read_memory_word(self.register.pc);
+                base.wrapping_add(self.register.y as u16)
             }
             AddressingMode::Indirect => {
-                let address = self.memory_map.read_memory_word(self.register.pc);
-                self.memory_map.read_memory_word(address as u16)
+                let address = self.read_memory_word(self.register.pc);
+
+                // self.read_memory_word(address as u16)
+                // 仕様上は上の操作だけで良いが、エミュレート元の6502にバグがある。
+                // ページ境界を跨ぐ時に、メモリの参照がおかしくなる。
+                // 例えば、30FFが指定された時、lo: 30FF, hi: 3000 として参照する。
+                if address & 0x00ff == 0x00ff {
+                    let lo = self.read_memory_byte(address);
+                    let hi = self.read_memory_byte(address & 0xff00);
+                    ((hi as u16) << 8) + lo as u16
+                } else {
+                    self.read_memory_word(address as u16)
+                }
             }
             AddressingMode::IndirectX => {
-                let base = self.memory_map.read_memory_byte(self.register.pc);
+                let base = self.read_memory_byte(self.register.pc);
                 let address = base.wrapping_add(self.register.x);
-                self.memory_map.read_memory_word(address as u16)
+
+                // ROMから得た値にXレジスタの値を足したものがベースアドレス（0x00 ~ 0xFF）
+                // そこから2byte分のデータを取るが、0xFFを超える場合は0x00に戻す。
+                let lo = self.read_memory_byte(address as u16);
+                let hi = self.read_memory_byte(address.wrapping_add(1) as u16);
+
+                ((hi as u16) << 8) + lo as u16
             }
             AddressingMode::IndirectY => {
-                let base = self.memory_map.read_memory_byte(self.register.pc);
-                let address = self.memory_map.read_memory_word(base as u16);
+                let base = self.read_memory_byte(self.register.pc);
 
-                let lo = ((address & 0x00ff) as u8).wrapping_add(self.register.y);
-                (address & 0xff00) + lo as u16
+                // ROMから得た値がベースアドレス（u8）
+                // そこから2byte分のデータを取るが、0xFFを超える場合は0x00に戻す。
+                let address_lo = self.read_memory_byte(base as u16);
+                let address_hi = self.read_memory_byte(base.wrapping_add(1) as u16);
+
+                // 取得したデータの下位、上位を結合（u16）
+                // そこにレジスタYの値を加算するが、0xFFFFを超える場合は0x0000に戻す。
+                let data = ((address_hi as u16) << 8) + address_lo as u16;
+                data.wrapping_add(self.register.y as u16)
             }
             AddressingMode::NoneAddressing | AddressingMode::Accumulator => {
                 panic!("{:?} is not supported", mode);
