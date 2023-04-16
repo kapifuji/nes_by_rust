@@ -1,4 +1,5 @@
 /// 16 byte header
+#[derive(Clone, Default)]
 pub struct Header {
     /// 0-3: Constant $4E $45 $53 $1A ("NES" followed by MS-DOS end-of-file)
     constant: [u8; 4],
@@ -20,6 +21,7 @@ pub struct Header {
     unused: [u8; 5],
 }
 
+#[derive(Clone, Default)]
 struct Flags6 {
     /// Mirroring:\
     /// false: horizontal (vertical arrangement) (CIRAM A10 = PPU A11)\
@@ -52,6 +54,7 @@ impl Flags6 {
     }
 }
 
+#[derive(Clone, Default)]
 struct Flags7 {
     /// true: VS Unisystem
     vs_unisystem: bool,
@@ -78,6 +81,7 @@ impl Flags7 {
     }
 }
 
+#[derive(Clone, Default)]
 struct Flags8 {
     prg_ram_size: u8,
 }
@@ -87,6 +91,7 @@ impl Flags8 {
     }
 }
 
+#[derive(Clone, Default)]
 struct Flags9 {
     /// TV system (false: NTSC, true: PAL)
     tv_system: bool,
@@ -99,6 +104,7 @@ impl Flags9 {
     }
 }
 
+#[derive(Clone, Default)]
 struct Flags10 {
     /// TV system (0: NTSC, 2: PAL, 1 or 3: dual compatible)
     tv_system: u8,
@@ -149,10 +155,11 @@ impl Header {
     }
 }
 
+#[derive(Clone)]
 pub struct Rom {
-    header: Header,
-    program: Vec<u8>,
-    charactor: Vec<u8>,
+    pub header: Header,
+    pub program: Vec<u8>,
+    pub charactor: Vec<u8>,
 }
 
 impl Rom {
