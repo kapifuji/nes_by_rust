@@ -747,12 +747,18 @@ impl Cpu {
         };
     }
 
-    /// 命令テスト用関数
-    pub fn interpret(&mut self) {
-        self.register.pc = 0x8000;
+    pub fn run(&mut self) {
+        self.run_with_callback(|_| {});
+    }
 
+    pub fn run_with_callback<F>(&mut self, mut callback: F)
+    where
+        F: FnMut(&mut Cpu),
+    {
         loop {
-            let code = self.memory_map.read_memory_byte(self.register.pc);
+            callback(self);
+
+            let code = self.read_memory_byte(self.register.pc);
             self.register.pc += 1;
 
             let opcode = self
