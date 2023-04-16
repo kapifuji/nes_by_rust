@@ -515,10 +515,14 @@ impl Cpu {
     }
 
     fn jsr(&mut self, mode: &AddressingMode) {
-        self.register.sp -= 2;
+        self.register.sp -= 1;
+
         let sp = 0x0100 as u16 + self.register.sp as u16;
-        let return_pc = self.register.pc + 2; // +3必要だが、事前に+1されている。
-        self.memory_map.write_memory_word(sp, return_pc);
+        // 命令長分+3（事前に+1済み）、RTSとの対応で-1しておく。（test ROMに合わせた実装）
+        let return_pc = self.register.pc + 2 - 1;
+        self.write_memory_word(sp, return_pc);
+
+        self.register.sp -= 1;
 
         let address = self.get_operand_address(mode);
         self.register.pc = address;
@@ -583,30 +587,35 @@ impl Cpu {
     }
 
     fn pha(&mut self) {
-        self.register.sp -= 1;
         let sp = 0x0100 as u16 + self.register.sp as u16;
-        self.memory_map.write_memory_byte(sp, self.register.a);
+        self.write_memory_byte(sp, self.register.a);
+
+        self.register.sp -= 1;
     }
 
     fn php(&mut self) {
-        self.register.sp -= 1;
         let sp = 0x0100 as u16 + self.register.sp as u16;
-        self.memory_map
-            .write_memory_byte(sp, self.register.p.read());
+        let data = self.register.p.read() | BIT4 | BIT5; // PHP は bit4 と BIT5 を設定した値を Push する。
+        self.write_memory_byte(sp, data);
+
+        self.register.sp -= 1;
     }
 
     fn pla(&mut self) {
-        let sp = 0x0100 as u16 + self.register.sp as u16;
-        self.register.a = self.memory_map.read_memory_byte(sp);
         self.register.sp += 1;
+
+        let sp = 0x0100 as u16 + self.register.sp as u16;
+        self.register.a = self.read_memory_byte(sp);
 
         self.update_zero_and_negative_flags(self.register.a);
     }
 
     fn plp(&mut self) {
-        let sp = 0x0100 as u16 + self.register.sp as u16;
-        self.register.p.write(self.memory_map.read_memory_byte(sp));
         self.register.sp += 1;
+
+        let sp = 0x0100 as u16 + self.register.sp as u16;
+        let data = (self.read_memory_byte(sp) & (!BIT4)) | BIT5; // PLP は bit4 を無視する。またbit5は常にセット。
+        self.register.p.write(data);
     }
 
     fn rol(&mut self, mode: &AddressingMode) {
@@ -663,13 +672,23 @@ impl Cpu {
 
     fn rti(&mut self) {
         self.plp(); // pull Processor Status
-        self.rts(); // pull Program Counter
+
+        self.register.sp += 1;
+
+        let sp = 0x0100 as u16 + self.register.sp as u16;
+        self.register.pc = self.read_memory_word(sp);
+
+        self.register.sp += 1;
     }
 
     fn rts(&mut self) {
+        self.register.sp += 1;
+
         let sp = 0x0100 as u16 + self.register.sp as u16;
-        self.register.pc = self.memory_map.read_memory_word(sp);
-        self.register.sp += 2;
+        // JSRで-1しているので+1（test ROMに合わせた実装）
+        self.register.pc = self.read_memory_word(sp) + 1;
+
+        self.register.sp += 1;
     }
 
     fn sbc(&mut self, mode: &AddressingMode) {
