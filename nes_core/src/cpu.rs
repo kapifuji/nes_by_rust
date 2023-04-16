@@ -866,64 +866,99 @@ impl Cpu {
 mod tests {
     use super::*;
 
+    fn create_test_rom(program_data: &Vec<u8>) -> Rom {
+        use crate::rom::Header;
+        use crate::rom::Rom;
+
+        let header = Header::default();
+        let mut program = vec![0; 0x8000];
+        let charactor = vec![0; 0x2000];
+
+        let program_size = if program_data.len() > 0x8000 {
+            0x8000
+        } else {
+            program_data.len()
+        };
+
+        for i in 0..program_size {
+            program[i] = program_data[i];
+        }
+
+        program[0xfffc - 0x8000] = 0x00;
+        program[0xfffd - 0x8000] = 0x80;
+
+        Rom {
+            header: header,
+            program: program,
+            charactor: charactor,
+        }
+    }
+
     #[test]
     fn test_cpu_new() {
-        let mut prg_rom: Vec<u8> = Vec::new();
+        let mut program: Vec<u8> = Vec::new();
         for i in 0..5 {
-            prg_rom.push(i);
+            program.push(i);
         }
-        let cpu = Cpu::new(&prg_rom);
+        let rom = create_test_rom(&program);
+        let cpu = Cpu::new(&rom);
 
         assert_eq!(cpu.register.sp, 0xfd);
-        assert_eq!(cpu.memory_map.prg_rom[0..5], [0x00, 0x01, 0x02, 0x03, 0x04]);
+        assert_eq!(cpu.bus.read_memory_byte(0x8002), 0x02);
     }
 
     #[test]
     fn test_cpu_reset() {
-        let mut prg_rom: Vec<u8> = Vec::new();
+        let mut program: Vec<u8> = Vec::new();
         for i in 0u16..0x8000 {
-            prg_rom.push((i % 0x100) as u8);
+            program.push((i % 0x100) as u8);
         }
-        let mut cpu = Cpu::new(&prg_rom);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
+        cpu.register.pc = 0x0000;
 
         cpu.reset();
 
-        assert_eq!(cpu.register.pc, 0xfdfc);
+        assert_eq!(cpu.register.pc, 0x8000);
     }
 
     #[test]
     fn test_0x69_adc_addtion() {
         let program = vec![0x69, 0x10, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.a = 0x50;
         cpu.register.p.c = true;
-        cpu.interpret();
+        cpu.register.p.v = true;
+        cpu.run();
 
         assert_eq!(cpu.register.a, 0x61);
-        assert_eq!(cpu.register.p.c, true);
+        assert_eq!(cpu.register.p.c, false);
         assert_eq!(cpu.register.p.v, false);
     }
 
     #[test]
     fn test_0x69_adc_overflow1() {
         let program = vec![0x69, 0x50, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.a = 0x50;
         cpu.register.p.c = true;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.a, 0xa1);
-        assert_eq!(cpu.register.p.c, true);
+        assert_eq!(cpu.register.p.c, false);
         assert_eq!(cpu.register.p.v, true);
     }
 
     #[test]
     fn test_0x69_adc_overflow2() {
         let program = vec![0x69, 0x90, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.a = 0xd0;
         cpu.register.p.c = false;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.a, 0x60);
         assert_eq!(cpu.register.p.c, true);
@@ -933,9 +968,10 @@ mod tests {
     #[test]
     fn test_0x29_and() {
         let program = vec![0x29, 0xf0, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.a = 0xff;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.a, 0xf0);
         assert_eq!(cpu.register.p.z, false);
@@ -945,10 +981,11 @@ mod tests {
     #[test]
     fn test_0x25_and() {
         let program = vec![0x25, 0x10, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.a = 0xff;
-        cpu.memory_map.write_memory_byte(0x0010, 0xf0);
-        cpu.interpret();
+        cpu.write_memory_byte(0x0010, 0xf0);
+        cpu.run();
 
         assert_eq!(cpu.register.a, 0xf0);
         assert_eq!(cpu.register.p.z, false);
@@ -958,11 +995,12 @@ mod tests {
     #[test]
     fn test_0x35_and() {
         let program = vec![0x35, 0x10, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.a = 0xff;
         cpu.register.x = 0xff;
-        cpu.memory_map.write_memory_byte(0x000f, 0xf0);
-        cpu.interpret();
+        cpu.write_memory_byte(0x000f, 0xf0);
+        cpu.run();
 
         assert_eq!(cpu.register.a, 0xf0);
         assert_eq!(cpu.register.p.z, false);
@@ -972,10 +1010,11 @@ mod tests {
     #[test]
     fn test_0x2d_and() {
         let program = vec![0x2d, 0x12, 0x05, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.a = 0xff;
-        cpu.memory_map.write_memory_byte(0x0512, 0xf0);
-        cpu.interpret();
+        cpu.write_memory_byte(0x0512, 0xf0);
+        cpu.run();
 
         assert_eq!(cpu.register.a, 0xf0);
         assert_eq!(cpu.register.p.z, false);
@@ -985,11 +1024,12 @@ mod tests {
     #[test]
     fn test_0x3d_and() {
         let program = vec![0x3d, 0x12, 0x05, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.a = 0xff;
         cpu.register.x = 0xff;
-        cpu.memory_map.write_memory_byte(0x0511, 0xf0);
-        cpu.interpret();
+        cpu.write_memory_byte(0x0611, 0xf0);
+        cpu.run();
 
         assert_eq!(cpu.register.a, 0xf0);
         assert_eq!(cpu.register.p.z, false);
@@ -999,11 +1039,12 @@ mod tests {
     #[test]
     fn test_0x39_and() {
         let program = vec![0x39, 0x12, 0x05, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.a = 0xff;
         cpu.register.y = 0xff;
-        cpu.memory_map.write_memory_byte(0x0511, 0xf0);
-        cpu.interpret();
+        cpu.write_memory_byte(0x0611, 0xf0);
+        cpu.run();
 
         assert_eq!(cpu.register.a, 0xf0);
         assert_eq!(cpu.register.p.z, false);
@@ -1013,12 +1054,13 @@ mod tests {
     #[test]
     fn test_0x21_and() {
         let program = vec![0x21, 0x10, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.a = 0xff;
         cpu.register.x = 0xff;
-        cpu.memory_map.write_memory_word(0x000f, 0x0512);
-        cpu.memory_map.write_memory_byte(0x0512, 0xf0);
-        cpu.interpret();
+        cpu.write_memory_word(0x000f, 0x0512);
+        cpu.write_memory_byte(0x0512, 0xf0);
+        cpu.run();
 
         assert_eq!(cpu.register.a, 0xf0);
         assert_eq!(cpu.register.p.z, false);
@@ -1028,12 +1070,13 @@ mod tests {
     #[test]
     fn test_0x31_and() {
         let program = vec![0x31, 0x10, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.a = 0xff;
         cpu.register.y = 0xff;
-        cpu.memory_map.write_memory_word(0x0010, 0x0512);
-        cpu.memory_map.write_memory_byte(0x0511, 0xf0);
-        cpu.interpret();
+        cpu.write_memory_word(0x0010, 0x0512);
+        cpu.write_memory_byte(0x0611, 0xf0);
+        cpu.run();
 
         assert_eq!(cpu.register.a, 0xf0);
         assert_eq!(cpu.register.p.z, false);
@@ -1043,9 +1086,10 @@ mod tests {
     #[test]
     fn test_0x0a_asl() {
         let program = vec![0x0a, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.a = 0b1100_1111;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.a, 0b1001_1110);
         assert_eq!(cpu.register.p.c, true);
@@ -1056,11 +1100,12 @@ mod tests {
     #[test]
     fn test_0x06_asl() {
         let program = vec![0x06, 0x10, 0x00];
-        let mut cpu = Cpu::new(&program);
-        cpu.memory_map.write_memory_byte(0x0010, 0b0000_1111);
-        cpu.interpret();
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
+        cpu.write_memory_byte(0x0010, 0b0000_1111);
+        cpu.run();
 
-        let result = cpu.memory_map.read_memory_byte(0x0010);
+        let result = cpu.read_memory_byte(0x0010);
         assert_eq!(result, 0b0001_1110);
         assert_eq!(cpu.register.p.c, false);
         assert_eq!(cpu.register.p.z, false);
@@ -1070,10 +1115,11 @@ mod tests {
     #[test]
     fn test_bcc_branch() {
         let program = vec![0x90, 0x81, 0x00, 0x0a, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.p.c = false;
         cpu.register.a = 0b0000_0001;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.a, 0b0000_0010);
     }
@@ -1081,10 +1127,11 @@ mod tests {
     #[test]
     fn test_bcc_not_branch() {
         let program = vec![0x90, 0x81, 0x00, 0x0a, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.p.c = true;
         cpu.register.a = 0b0000_0001;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.a, 0b0000_0001);
     }
@@ -1092,10 +1139,11 @@ mod tests {
     #[test]
     fn test_bcs_branch() {
         let program = vec![0xb0, 0x81, 0x00, 0x0a, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.p.c = true;
         cpu.register.a = 0b0000_0001;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.a, 0b0000_0010);
     }
@@ -1103,10 +1151,11 @@ mod tests {
     #[test]
     fn test_bcs_not_branch() {
         let program = vec![0xb0, 0x81, 0x00, 0x0a, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.p.c = false;
         cpu.register.a = 0b0000_0001;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.a, 0b0000_0001);
     }
@@ -1114,10 +1163,11 @@ mod tests {
     #[test]
     fn test_beq_branch() {
         let program = vec![0xf0, 0x81, 0x00, 0x0a, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.p.z = true;
         cpu.register.a = 0b0000_0001;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.a, 0b0000_0010);
     }
@@ -1125,10 +1175,11 @@ mod tests {
     #[test]
     fn test_beq_not_branch() {
         let program = vec![0xf0, 0x81, 0x00, 0x0a, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.p.z = false;
         cpu.register.a = 0b0000_0001;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.a, 0b0000_0001);
     }
@@ -1136,10 +1187,11 @@ mod tests {
     #[test]
     fn test_0x24_bit() {
         let program = vec![0x24, 0x10, 0x00];
-        let mut cpu = Cpu::new(&program);
-        cpu.memory_map.write_memory_byte(0x10, 0b1100_0000);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
+        cpu.write_memory_byte(0x10, 0b1100_0000);
         cpu.register.a = 0x00;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.p.z, true);
         assert_eq!(cpu.register.p.v, true);
@@ -1149,10 +1201,11 @@ mod tests {
     #[test]
     fn test_bmi_branch() {
         let program = vec![0x30, 0x81, 0x00, 0x0a, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.p.n = true;
         cpu.register.a = 0b0000_0001;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.a, 0b0000_0010);
     }
@@ -1160,10 +1213,11 @@ mod tests {
     #[test]
     fn test_bmi_not_branch() {
         let program = vec![0x30, 0x81, 0x00, 0x0a, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.p.n = false;
         cpu.register.a = 0b0000_0001;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.a, 0b0000_0001);
     }
@@ -1171,10 +1225,11 @@ mod tests {
     #[test]
     fn test_bne_branch() {
         let program = vec![0xd0, 0x81, 0x00, 0x0a, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.p.z = false;
         cpu.register.a = 0b0000_0001;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.a, 0b0000_0010);
     }
@@ -1182,10 +1237,11 @@ mod tests {
     #[test]
     fn test_bne_not_branch() {
         let program = vec![0xd0, 0x81, 0x00, 0x0a, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.p.z = true;
         cpu.register.a = 0b0000_0001;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.a, 0b0000_0001);
     }
@@ -1193,10 +1249,11 @@ mod tests {
     #[test]
     fn test_bpl_branch() {
         let program = vec![0x10, 0x81, 0x00, 0x0a, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.p.n = false;
         cpu.register.a = 0b0000_0001;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.a, 0b0000_0010);
     }
@@ -1204,10 +1261,11 @@ mod tests {
     #[test]
     fn test_bpl_not_branch() {
         let program = vec![0x10, 0x81, 0x00, 0x0a, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.p.n = true;
         cpu.register.a = 0b0000_0001;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.a, 0b0000_0001);
     }
@@ -1215,9 +1273,10 @@ mod tests {
     #[test]
     fn test_brk() {
         let program = vec![0x00, 0x0a, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.a = 0b0000_0001;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.a, 0b0000_0001);
     }
@@ -1225,10 +1284,11 @@ mod tests {
     #[test]
     fn test_bvc_branch() {
         let program = vec![0x50, 0x81, 0x00, 0x0a, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.p.v = false;
         cpu.register.a = 0b0000_0001;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.a, 0b0000_0010);
     }
@@ -1236,10 +1296,11 @@ mod tests {
     #[test]
     fn test_bvc_not_branch() {
         let program = vec![0x50, 0x81, 0x00, 0x0a, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.p.v = true;
         cpu.register.a = 0b0000_0001;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.a, 0b0000_0001);
     }
@@ -1247,10 +1308,11 @@ mod tests {
     #[test]
     fn test_bvs_branch() {
         let program = vec![0x70, 0x81, 0x00, 0x0a, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.p.v = true;
         cpu.register.a = 0b0000_0001;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.a, 0b0000_0010);
     }
@@ -1258,10 +1320,11 @@ mod tests {
     #[test]
     fn test_bvs_not_branch() {
         let program = vec![0x70, 0x81, 0x00, 0x0a, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.p.v = false;
         cpu.register.a = 0b0000_0001;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.a, 0b0000_0001);
     }
@@ -1269,9 +1332,10 @@ mod tests {
     #[test]
     fn test_clc() {
         let program = vec![0x18, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.p.c = true;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.p.c, false);
     }
@@ -1279,9 +1343,10 @@ mod tests {
     #[test]
     fn test_cld() {
         let program = vec![0xd8, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.p.d = true;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.p.d, false);
     }
@@ -1289,9 +1354,10 @@ mod tests {
     #[test]
     fn test_cli() {
         let program = vec![0x58, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.p.i = true;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.p.i, false);
     }
@@ -1299,9 +1365,10 @@ mod tests {
     #[test]
     fn test_clv() {
         let program = vec![0xb8, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.p.v = true;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.p.v, false);
     }
@@ -1309,9 +1376,10 @@ mod tests {
     #[test]
     fn test_0xc9_cmp_carry() {
         let program = vec![0xc9, 0x01, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.a = 0x01;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.p.c, true);
         assert_eq!(cpu.register.p.z, true);
@@ -1321,9 +1389,11 @@ mod tests {
     #[test]
     fn test_0xc9_cmp_not_carry() {
         let program = vec![0xc9, 0x02, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.a = 0x01;
-        cpu.interpret();
+        cpu.register.p.c = true;
+        cpu.run();
 
         assert_eq!(cpu.register.p.c, false);
         assert_eq!(cpu.register.p.z, false);
@@ -1333,9 +1403,10 @@ mod tests {
     #[test]
     fn test_0xe0_cpx_carry() {
         let program = vec![0xe0, 0x01, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.x = 0x01;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.p.c, true);
         assert_eq!(cpu.register.p.z, true);
@@ -1345,9 +1416,10 @@ mod tests {
     #[test]
     fn test_0xe0_cpx_not_carry() {
         let program = vec![0xe0, 0x02, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.x = 0x01;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.p.c, false);
         assert_eq!(cpu.register.p.z, false);
@@ -1357,9 +1429,10 @@ mod tests {
     #[test]
     fn test_0xc0_cpy_carry() {
         let program = vec![0xc0, 0x01, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.y = 0x01;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.p.c, true);
         assert_eq!(cpu.register.p.z, true);
@@ -1369,9 +1442,10 @@ mod tests {
     #[test]
     fn test_0xc0_cpy_not_carry() {
         let program = vec![0xc0, 0x02, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.y = 0x01;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.p.c, false);
         assert_eq!(cpu.register.p.z, false);
@@ -1381,11 +1455,12 @@ mod tests {
     #[test]
     fn test_0xc6_dec() {
         let program = vec![0xc6, 0x02, 0x00];
-        let mut cpu = Cpu::new(&program);
-        cpu.memory_map.write_memory_byte(0x0002, 0x00);
-        cpu.interpret();
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
+        cpu.write_memory_byte(0x0002, 0x00);
+        cpu.run();
 
-        let result = cpu.memory_map.read_memory_byte(0x0002);
+        let result = cpu.read_memory_byte(0x0002);
         assert_eq!(result, 0xff);
         assert_eq!(cpu.register.p.z, false);
         assert_eq!(cpu.register.p.n, true);
@@ -1394,9 +1469,10 @@ mod tests {
     #[test]
     fn test_dex() {
         let program = vec![0xca, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.x = 0;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.x, 0xff);
         assert_eq!(cpu.register.p.z, false);
@@ -1406,9 +1482,10 @@ mod tests {
     #[test]
     fn test_dey() {
         let program = vec![0x88, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.y = 0;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.y, 0xff);
         assert_eq!(cpu.register.p.z, false);
@@ -1418,9 +1495,10 @@ mod tests {
     #[test]
     fn test_0x49_eor() {
         let program = vec![0x49, 0x0f, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.a = 0xff;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.a, 0xf0);
         assert_eq!(cpu.register.p.z, false);
@@ -1430,11 +1508,12 @@ mod tests {
     #[test]
     fn test_0xe6_inc() {
         let program = vec![0xe6, 0x02, 0x00];
-        let mut cpu = Cpu::new(&program);
-        cpu.memory_map.write_memory_byte(0x0002, 0xff);
-        cpu.interpret();
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
+        cpu.write_memory_byte(0x0002, 0xff);
+        cpu.run();
 
-        let result = cpu.memory_map.read_memory_byte(0x0002);
+        let result = cpu.read_memory_byte(0x0002);
         assert_eq!(result, 0x00);
         assert_eq!(cpu.register.p.z, true);
         assert_eq!(cpu.register.p.n, false);
@@ -1443,9 +1522,10 @@ mod tests {
     #[test]
     fn test_inx() {
         let program = vec![0xe8, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.x = 0xff;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.x, 0x00);
         assert_eq!(cpu.register.p.z, true);
@@ -1455,9 +1535,10 @@ mod tests {
     #[test]
     fn test_iny() {
         let program = vec![0xc8, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.y = 0xff;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.y, 0x00);
         assert_eq!(cpu.register.p.z, true);
@@ -1471,8 +1552,9 @@ mod tests {
             0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea,
             0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0x00,
         ];
-        let mut cpu = Cpu::new(&program);
-        cpu.interpret();
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
+        cpu.run();
 
         assert_eq!(cpu.register.p.c, true);
     }
@@ -1484,9 +1566,10 @@ mod tests {
             0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea,
             0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0x00,
         ];
-        let mut cpu = Cpu::new(&program);
-        cpu.memory_map.write_memory_word(0x0200, 0x800a);
-        cpu.interpret();
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
+        cpu.write_memory_word(0x0200, 0x800a);
+        cpu.run();
 
         assert_eq!(cpu.register.p.c, true);
     }
@@ -1498,19 +1581,21 @@ mod tests {
             0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea,
             0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0x00,
         ];
-        let mut cpu = Cpu::new(&program);
-        cpu.interpret();
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
+        cpu.run();
 
         assert_eq!(cpu.register.sp, 0xfb);
-        assert_eq!(cpu.memory_map.read_memory_word(0x01fb), 0x8003);
+        assert_eq!(cpu.read_memory_word(0x01fc), 0x8002);
         assert_eq!(cpu.register.p.c, true);
     }
 
     #[test]
     fn test_0xa9_lda_immidiate_load_data() {
         let program = vec![0xa9, 0x05, 0x00];
-        let mut cpu = Cpu::new(&program);
-        cpu.interpret();
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
+        cpu.run();
 
         assert_eq!(cpu.register.a, 0x05);
         assert_eq!(cpu.register.p.z, false);
@@ -1520,8 +1605,9 @@ mod tests {
     #[test]
     fn test_0xa9_lda_zero_flag() {
         let program = vec![0xa9, 0x00, 0x00];
-        let mut cpu = Cpu::new(&program);
-        cpu.interpret();
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
+        cpu.run();
 
         assert_eq!(cpu.register.p.z, true);
     }
@@ -1529,8 +1615,9 @@ mod tests {
     #[test]
     fn test_0xa9_lda_negative_flag() {
         let program = vec![0xa9, 0b1000_0000, 0x00];
-        let mut cpu = Cpu::new(&program);
-        cpu.interpret();
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
+        cpu.run();
 
         assert_eq!(cpu.register.p.n, true);
     }
@@ -1538,8 +1625,9 @@ mod tests {
     #[test]
     fn test_0xa2_ldx() {
         let program = vec![0xa2, 0b1000_0000, 0x00];
-        let mut cpu = Cpu::new(&program);
-        cpu.interpret();
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
+        cpu.run();
 
         assert_eq!(cpu.register.x, 0b1000_0000);
         assert_eq!(cpu.register.p.z, false);
@@ -1549,8 +1637,9 @@ mod tests {
     #[test]
     fn test_0xa0_ldy() {
         let program = vec![0xa0, 0b1000_0000, 0x00];
-        let mut cpu = Cpu::new(&program);
-        cpu.interpret();
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
+        cpu.run();
 
         assert_eq!(cpu.register.y, 0b1000_0000);
         assert_eq!(cpu.register.p.z, false);
@@ -1560,9 +1649,10 @@ mod tests {
     #[test]
     fn test_0x4a_lsr() {
         let program = vec![0x4a, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.a = 0b1100_1111;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.a, 0b0110_0111);
         assert_eq!(cpu.register.p.c, true);
@@ -1573,11 +1663,12 @@ mod tests {
     #[test]
     fn test_0x46_lsr() {
         let program = vec![0x46, 0x10, 0x00];
-        let mut cpu = Cpu::new(&program);
-        cpu.memory_map.write_memory_byte(0x0010, 0b0000_1110);
-        cpu.interpret();
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
+        cpu.write_memory_byte(0x0010, 0b0000_1110);
+        cpu.run();
 
-        let result = cpu.memory_map.read_memory_byte(0x0010);
+        let result = cpu.read_memory_byte(0x0010);
         assert_eq!(result, 0b0000_0111);
         assert_eq!(cpu.register.p.c, false);
         assert_eq!(cpu.register.p.z, false);
@@ -1587,16 +1678,18 @@ mod tests {
     #[test]
     fn test_nop() {
         let program = vec![0xea, 0x00];
-        let mut cpu = Cpu::new(&program);
-        cpu.interpret();
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
+        cpu.run();
     }
 
     #[test]
     fn test_0x09_ora() {
         let program = vec![0x09, 0x55, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.a = 0x80;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.a, 0xd5);
         assert_eq!(cpu.register.p.z, false);
@@ -1606,32 +1699,35 @@ mod tests {
     #[test]
     fn test_pha() {
         let program = vec![0x48, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.a = 0x80;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.sp, 0xfc);
-        assert_eq!(cpu.memory_map.read_memory_byte(0x01fc), 0x80);
+        assert_eq!(cpu.read_memory_byte(0x01fd), 0x80);
     }
 
     #[test]
     fn test_php() {
         let program = vec![0x08, 0x00];
-        let mut cpu = Cpu::new(&program);
-        cpu.register.p.write(0b01010101);
-        cpu.interpret();
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
+        cpu.register.p.write(0b01000101);
+        cpu.run();
 
         assert_eq!(cpu.register.sp, 0xfc);
-        assert_eq!(cpu.memory_map.read_memory_byte(0x01fc), 0b01010101);
+        assert_eq!(cpu.read_memory_byte(0x01fd), 0b01110101);
     }
 
     #[test]
     fn test_pla() {
         let program = vec![0x68, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.sp = 0xfc;
-        cpu.memory_map.write_memory_word(0x01fc, 0x80);
-        cpu.interpret();
+        cpu.write_memory_word(0x01fd, 0x80);
+        cpu.run();
 
         assert_eq!(cpu.register.sp, 0xfd);
         assert_eq!(cpu.register.a, 0x80);
@@ -1642,22 +1738,24 @@ mod tests {
     #[test]
     fn test_plp() {
         let program = vec![0x28, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.sp = 0xfc;
-        cpu.memory_map.write_memory_word(0x01fc, 0b01010101);
-        cpu.interpret();
+        cpu.write_memory_word(0x01fd, 0b01010101);
+        cpu.run();
 
         assert_eq!(cpu.register.sp, 0xfd);
-        assert_eq!(cpu.register.p.read(), 0b01010101);
+        assert_eq!(cpu.register.p.read(), 0b01100101);
     }
 
     #[test]
     fn test_0x2a_rol() {
         let program = vec![0x2a, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.a = 0b1100_1111;
         cpu.register.p.c = true;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.a, 0b1001_1111);
         assert_eq!(cpu.register.p.c, true);
@@ -1668,11 +1766,12 @@ mod tests {
     #[test]
     fn test_0x26_rol() {
         let program = vec![0x26, 0x10, 0x00];
-        let mut cpu = Cpu::new(&program);
-        cpu.memory_map.write_memory_byte(0x0010, 0b0000_1111);
-        cpu.interpret();
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
+        cpu.write_memory_byte(0x0010, 0b0000_1111);
+        cpu.run();
 
-        let result = cpu.memory_map.read_memory_byte(0x0010);
+        let result = cpu.read_memory_byte(0x0010);
         assert_eq!(result, 0b0001_1110);
         assert_eq!(cpu.register.p.c, false);
         assert_eq!(cpu.register.p.z, false);
@@ -1682,10 +1781,11 @@ mod tests {
     #[test]
     fn test_0x6a_ror() {
         let program = vec![0x6a, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.a = 0b1100_1111;
         cpu.register.p.c = true;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.a, 0b1110_0111);
         assert_eq!(cpu.register.p.c, true);
@@ -1696,11 +1796,12 @@ mod tests {
     #[test]
     fn test_0x66_ror() {
         let program = vec![0x66, 0x10, 0x00];
-        let mut cpu = Cpu::new(&program);
-        cpu.memory_map.write_memory_byte(0x0010, 0b0000_1110);
-        cpu.interpret();
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
+        cpu.write_memory_byte(0x0010, 0b0000_1110);
+        cpu.run();
 
-        let result = cpu.memory_map.read_memory_byte(0x0010);
+        let result = cpu.read_memory_byte(0x0010);
         assert_eq!(result, 0b0000_0111);
         assert_eq!(cpu.register.p.c, false);
         assert_eq!(cpu.register.p.z, false);
@@ -1714,15 +1815,16 @@ mod tests {
             0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea,
             0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0x00,
         ];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.sp = 0xfa;
-        cpu.memory_map.write_memory_word(0x01fb, 0x800a);
-        cpu.memory_map.write_memory_byte(0x01fa, 0b01010101);
-        cpu.interpret();
+        cpu.write_memory_word(0x01fc, 0x800a);
+        cpu.write_memory_byte(0x01fb, 0b01010101);
+        cpu.run();
 
         assert_eq!(cpu.register.sp, 0xfd);
         assert_eq!(cpu.register.p.c, true);
-        assert_eq!(cpu.register.p.read(), 0b01010101);
+        assert_eq!(cpu.register.p.read(), 0b01100101);
     }
 
     #[test]
@@ -1732,10 +1834,11 @@ mod tests {
             0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea,
             0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0xea, 0x00,
         ];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.sp = 0xfb;
-        cpu.memory_map.write_memory_word(0x01fb, 0x800a);
-        cpu.interpret();
+        cpu.write_memory_word(0x01fc, 0x8009);
+        cpu.run();
 
         assert_eq!(cpu.register.sp, 0xfd);
         assert_eq!(cpu.register.p.c, true);
@@ -1744,10 +1847,11 @@ mod tests {
     #[test]
     fn test_0xe9_sbc_subtraction() {
         let program = vec![0xe9, 0x40, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.a = 0x50;
         cpu.register.p.c = true;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.a, 0x10);
         assert_eq!(cpu.register.p.c, true);
@@ -1757,10 +1861,11 @@ mod tests {
     #[test]
     fn test_0xe9_sbc_overflow1() {
         let program = vec![0xe9, 0xb0, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.a = 0x50;
         cpu.register.p.c = true;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.a, 0xa0);
         assert_eq!(cpu.register.p.c, false);
@@ -1770,21 +1875,23 @@ mod tests {
     #[test]
     fn test_0xe9_sbc_overflow2() {
         let program = vec![0xe9, 0x70, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.a = 0xd0;
         cpu.register.p.c = false;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.a, 0x5f);
-        assert_eq!(cpu.register.p.c, false);
+        assert_eq!(cpu.register.p.c, true);
         assert_eq!(cpu.register.p.v, true);
     }
 
     #[test]
     fn test_sec_set_carry() {
         let program = vec![0x38, 0x00];
-        let mut cpu = Cpu::new(&program);
-        cpu.interpret();
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
+        cpu.run();
 
         assert_eq!(cpu.register.p.c, true);
     }
@@ -1792,8 +1899,9 @@ mod tests {
     #[test]
     fn test_sed_set_decimal() {
         let program = vec![0xf8, 0x00];
-        let mut cpu = Cpu::new(&program);
-        cpu.interpret();
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
+        cpu.run();
 
         assert_eq!(cpu.register.p.d, true);
     }
@@ -1801,8 +1909,9 @@ mod tests {
     #[test]
     fn test_sei_disable_interrupt() {
         let program = vec![0x78, 0x00];
-        let mut cpu = Cpu::new(&program);
-        cpu.interpret();
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
+        cpu.run();
 
         assert_eq!(cpu.register.p.i, true);
     }
@@ -1810,9 +1919,10 @@ mod tests {
     #[test]
     fn test_lda_from_memory() {
         let program = vec![0xa5, 0x10, 0x00];
-        let mut cpu = Cpu::new(&program);
-        cpu.memory_map.write_memory_byte(0x0010, 0x55);
-        cpu.interpret();
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
+        cpu.write_memory_byte(0x0010, 0x55);
+        cpu.run();
 
         assert_eq!(cpu.register.a, 0x55);
     }
@@ -1820,50 +1930,55 @@ mod tests {
     #[test]
     fn test_0x85_sta_store_a() {
         let program = vec![0x85, 0x10, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.a = 100;
-        cpu.interpret();
+        cpu.run();
 
-        assert_eq!(cpu.memory_map.read_memory_byte(0x0010), 100);
+        assert_eq!(cpu.read_memory_byte(0x0010), 100);
     }
 
     #[test]
     fn test_0x86_stx_store_x() {
         let program = vec![0x86, 0x10, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.x = 100;
-        cpu.interpret();
+        cpu.run();
 
-        assert_eq!(cpu.memory_map.read_memory_byte(0x0010), 100);
+        assert_eq!(cpu.read_memory_byte(0x0010), 100);
     }
 
     #[test]
     fn test_0x96_stx() {
         let program = vec![0x96, 0x10, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.x = 100;
         cpu.register.y = 0xff;
-        cpu.interpret();
+        cpu.run();
 
-        assert_eq!(cpu.memory_map.read_memory_byte(0x000f), 100);
+        assert_eq!(cpu.read_memory_byte(0x000f), 100);
     }
 
     #[test]
     fn test_0x84_sty_store_y() {
         let program = vec![0x84, 0x10, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.y = 100;
-        cpu.interpret();
+        cpu.run();
 
-        assert_eq!(cpu.memory_map.read_memory_byte(0x0010), 100);
+        assert_eq!(cpu.read_memory_byte(0x0010), 100);
     }
 
     #[test]
     fn test_0xaa_tax_move_a_to_x() {
         let program = vec![0xaa, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.a = 10;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.x, 10);
     }
@@ -1871,8 +1986,9 @@ mod tests {
     #[test]
     fn test_5_ops_working_together() {
         let program = vec![0xa9, 0xc0, 0xaa, 0xe8, 0x00];
-        let mut cpu = Cpu::new(&program);
-        cpu.interpret();
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
+        cpu.run();
 
         assert_eq!(cpu.register.x, 0xc1)
     }
@@ -1880,9 +1996,10 @@ mod tests {
     #[test]
     fn test_tay_move_a_to_y() {
         let program = vec![0xa8, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.a = 20;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.y, 20);
     }
@@ -1890,9 +2007,10 @@ mod tests {
     #[test]
     fn test_tsx_move_sp_to_x() {
         let program = vec![0xba, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.sp = 0x50;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.x, 0x50);
     }
@@ -1900,9 +2018,10 @@ mod tests {
     #[test]
     fn test_txa_move_x_to_a() {
         let program = vec![0x8a, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.x = 20;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.a, 20);
     }
@@ -1910,9 +2029,10 @@ mod tests {
     #[test]
     fn test_txs_move_x_to_sp() {
         let program = vec![0x9a, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.x = 0x50;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.sp, 0x50);
     }
@@ -1920,9 +2040,10 @@ mod tests {
     #[test]
     fn test_tya_move_y_to_a() {
         let program = vec![0x98, 0x00];
-        let mut cpu = Cpu::new(&program);
+        let rom = create_test_rom(&program);
+        let mut cpu = Cpu::new(&rom);
         cpu.register.y = 20;
-        cpu.interpret();
+        cpu.run();
 
         assert_eq!(cpu.register.a, 20);
     }
