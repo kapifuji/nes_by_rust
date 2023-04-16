@@ -90,7 +90,7 @@ impl Default for StatusRegister {
             n: false,
             v: false,
             r: true,
-            b: true,
+            b: false,
             d: false,
             i: true,
             z: false,
