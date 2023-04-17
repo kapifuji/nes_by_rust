@@ -14,18 +14,6 @@ const BIT5: u8 = 0b0010_0000;
 const BIT6: u8 = 0b0100_0000;
 const BIT7: u8 = 0b1000_0000;
 
-#[derive(Default)]
-pub struct PpuRegister {
-    ppu_control: u8,
-    ppu_mask: u8,
-    ppu_status: u8,
-    oam_address: u8,
-    oam_data: u8,
-    ppu_scroll: u8,
-    ppu_address: u8,
-    ppu_data: u8,
-}
-
 struct CpuRegister {
     /// Accumulator
     a: u8,
@@ -204,10 +192,6 @@ impl Cpu {
 
     pub fn write_memory_word(&mut self, address: u16, value: u16) {
         self.bus.write_memory_word(address, value)
-    }
-
-    pub fn get_ppu_register() -> PpuRegister {
-        todo!()
     }
 
     pub fn reset(&mut self) {
