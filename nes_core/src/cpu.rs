@@ -1115,7 +1115,7 @@ mod tests {
 
     #[test]
     fn test_bcc_branch() {
-        let program = vec![0x90, 0x81, 0x00, 0x0a, 0x00];
+        let program = vec![0x90, 0x01, 0x00, 0x0a, 0x00];
         let rom = create_test_rom(&program);
         let mut cpu = Cpu::new(&rom);
         cpu.register.p.c = false;
@@ -1127,7 +1127,7 @@ mod tests {
 
     #[test]
     fn test_bcc_not_branch() {
-        let program = vec![0x90, 0x81, 0x00, 0x0a, 0x00];
+        let program = vec![0x90, 0x01, 0x00, 0x0a, 0x00];
         let rom = create_test_rom(&program);
         let mut cpu = Cpu::new(&rom);
         cpu.register.p.c = true;
@@ -1139,7 +1139,7 @@ mod tests {
 
     #[test]
     fn test_bcs_branch() {
-        let program = vec![0xb0, 0x81, 0x00, 0x0a, 0x00];
+        let program = vec![0xb0, 0x01, 0x00, 0x0a, 0x00];
         let rom = create_test_rom(&program);
         let mut cpu = Cpu::new(&rom);
         cpu.register.p.c = true;
@@ -1151,7 +1151,7 @@ mod tests {
 
     #[test]
     fn test_bcs_not_branch() {
-        let program = vec![0xb0, 0x81, 0x00, 0x0a, 0x00];
+        let program = vec![0xb0, 0x01, 0x00, 0x0a, 0x00];
         let rom = create_test_rom(&program);
         let mut cpu = Cpu::new(&rom);
         cpu.register.p.c = false;
@@ -1163,7 +1163,7 @@ mod tests {
 
     #[test]
     fn test_beq_branch() {
-        let program = vec![0xf0, 0x81, 0x00, 0x0a, 0x00];
+        let program = vec![0xf0, 0x01, 0x00, 0x0a, 0x00];
         let rom = create_test_rom(&program);
         let mut cpu = Cpu::new(&rom);
         cpu.register.p.z = true;
@@ -1175,7 +1175,7 @@ mod tests {
 
     #[test]
     fn test_beq_not_branch() {
-        let program = vec![0xf0, 0x81, 0x00, 0x0a, 0x00];
+        let program = vec![0xf0, 0x01, 0x00, 0x0a, 0x00];
         let rom = create_test_rom(&program);
         let mut cpu = Cpu::new(&rom);
         cpu.register.p.z = false;
@@ -1201,7 +1201,7 @@ mod tests {
 
     #[test]
     fn test_bmi_branch() {
-        let program = vec![0x30, 0x81, 0x00, 0x0a, 0x00];
+        let program = vec![0x30, 0x01, 0x00, 0x0a, 0x00];
         let rom = create_test_rom(&program);
         let mut cpu = Cpu::new(&rom);
         cpu.register.p.n = true;
@@ -1213,7 +1213,7 @@ mod tests {
 
     #[test]
     fn test_bmi_not_branch() {
-        let program = vec![0x30, 0x81, 0x00, 0x0a, 0x00];
+        let program = vec![0x30, 0x01, 0x00, 0x0a, 0x00];
         let rom = create_test_rom(&program);
         let mut cpu = Cpu::new(&rom);
         cpu.register.p.n = false;
@@ -1225,7 +1225,7 @@ mod tests {
 
     #[test]
     fn test_bne_branch() {
-        let program = vec![0xd0, 0x81, 0x00, 0x0a, 0x00];
+        let program = vec![0xd0, 0x01, 0x00, 0x0a, 0x00];
         let rom = create_test_rom(&program);
         let mut cpu = Cpu::new(&rom);
         cpu.register.p.z = false;
@@ -1237,7 +1237,7 @@ mod tests {
 
     #[test]
     fn test_bne_not_branch() {
-        let program = vec![0xd0, 0x81, 0x00, 0x0a, 0x00];
+        let program = vec![0xd0, 0x01, 0x00, 0x0a, 0x00];
         let rom = create_test_rom(&program);
         let mut cpu = Cpu::new(&rom);
         cpu.register.p.z = true;
@@ -1249,7 +1249,7 @@ mod tests {
 
     #[test]
     fn test_bpl_branch() {
-        let program = vec![0x10, 0x81, 0x00, 0x0a, 0x00];
+        let program = vec![0x10, 0x01, 0x00, 0x0a, 0x00];
         let rom = create_test_rom(&program);
         let mut cpu = Cpu::new(&rom);
         cpu.register.p.n = false;
@@ -1261,7 +1261,7 @@ mod tests {
 
     #[test]
     fn test_bpl_not_branch() {
-        let program = vec![0x10, 0x81, 0x00, 0x0a, 0x00];
+        let program = vec![0x10, 0x01, 0x00, 0x0a, 0x00];
         let rom = create_test_rom(&program);
         let mut cpu = Cpu::new(&rom);
         cpu.register.p.n = true;
@@ -1284,7 +1284,7 @@ mod tests {
 
     #[test]
     fn test_bvc_branch() {
-        let program = vec![0x50, 0x81, 0x00, 0x0a, 0x00];
+        let program = vec![0x50, 0x01, 0x00, 0x0a, 0x00];
         let rom = create_test_rom(&program);
         let mut cpu = Cpu::new(&rom);
         cpu.register.p.v = false;
@@ -1296,7 +1296,7 @@ mod tests {
 
     #[test]
     fn test_bvc_not_branch() {
-        let program = vec![0x50, 0x81, 0x00, 0x0a, 0x00];
+        let program = vec![0x50, 0x01, 0x00, 0x0a, 0x00];
         let rom = create_test_rom(&program);
         let mut cpu = Cpu::new(&rom);
         cpu.register.p.v = true;
@@ -1308,7 +1308,7 @@ mod tests {
 
     #[test]
     fn test_bvs_branch() {
-        let program = vec![0x70, 0x81, 0x00, 0x0a, 0x00];
+        let program = vec![0x70, 0x01, 0x00, 0x0a, 0x00];
         let rom = create_test_rom(&program);
         let mut cpu = Cpu::new(&rom);
         cpu.register.p.v = true;
@@ -1320,7 +1320,7 @@ mod tests {
 
     #[test]
     fn test_bvs_not_branch() {
-        let program = vec![0x70, 0x81, 0x00, 0x0a, 0x00];
+        let program = vec![0x70, 0x01, 0x00, 0x0a, 0x00];
         let rom = create_test_rom(&program);
         let mut cpu = Cpu::new(&rom);
         cpu.register.p.v = false;
