@@ -757,6 +757,106 @@ impl Cpu {
         self.update_zero_and_negative_flags(self.register.a);
     }
 
+    fn alr(&mut self, mode: &AddressingMode) {
+        self.and(mode);
+        self.lsr(&AddressingMode::Accumulator);
+    }
+
+    fn anc(&mut self, mode: &AddressingMode) {
+        self.and(mode);
+        self.register.p.c = self.register.p.z;
+    }
+
+    fn arr(&mut self, mode: &AddressingMode) {
+        self.and(mode);
+
+        let old_value = self.register.a;
+
+        let result = if self.register.p.c == true {
+            (old_value >> 1) | 0x80
+        } else {
+            old_value >> 1
+        };
+
+        let bit6 = (old_value & BIT6) == BIT6;
+        let bit5 = (old_value & BIT5) == BIT5;
+        self.register.p.c = bit6;
+        self.register.p.v = bit6 ^ bit5;
+
+        self.register.a = result;
+
+        self.update_zero_and_negative_flags(result);
+    }
+
+    fn axs(&mut self, mode: &AddressingMode) {
+        let address = self.get_operand_address(mode);
+        let value = self.read_memory_byte(address);
+        let x_and_a = self.register.x & self.register.a;
+
+        let result = x_and_a.wrapping_sub(value);
+
+        self.register.x = result;
+
+        if value <= x_and_a {
+            self.register.p.c = true;
+        }
+        self.update_zero_and_negative_flags(result);
+    }
+
+    fn lax(&mut self, mode: &AddressingMode) {
+        self.lda(mode);
+        self.tax();
+    }
+
+    fn sax(&mut self, mode: &AddressingMode) {
+        let address = self.get_operand_address(mode);
+        let result = self.register.a & self.register.x;
+
+        self.write_memory_byte(address, result);
+    }
+
+    fn dcp(&mut self, mode: &AddressingMode) {
+        self.dec(mode);
+        self.cmp(mode);
+    }
+
+    fn isc(&mut self, mode: &AddressingMode) {
+        self.inc(mode);
+        self.sbc(mode);
+    }
+
+    fn rla(&mut self, mode: &AddressingMode) {
+        self.rol(mode);
+        self.and(mode);
+    }
+
+    fn rra(&mut self, mode: &AddressingMode) {
+        self.ror(mode);
+        self.adc(mode);
+    }
+
+    fn slo(&mut self, mode: &AddressingMode) {
+        self.asl(mode);
+        self.ora(mode);
+    }
+
+    fn sre(&mut self, mode: &AddressingMode) {
+        self.lsr(mode);
+        self.eor(mode);
+    }
+
+    fn skb(&mut self, mode: &AddressingMode) {
+        let address = self.get_operand_address(mode);
+        let value = self.read_memory_byte(address);
+        // メモリリードするが、何もしない。
+    }
+
+    fn ign(&mut self, mode: &AddressingMode) {
+        let address = self.get_operand_address(mode);
+        let value = self.read_memory_byte(address);
+        // メモリリードするが、何もしない。
+    }
+
     fn update_zero_and_negative_flags(&mut self, result: u8) {
         self.register.p.z = if result == 0 { true } else { false };
 
@@ -856,6 +956,20 @@ impl Cpu {
                 Instruction::TXA => self.txa(),
                 Instruction::TXS => self.txs(),
                 Instruction::TYA => self.tya(),
+                Instruction::ALR => self.alr(&opcode.addressing_mode),
+                Instruction::ANC => self.anc(&opcode.addressing_mode),
+                Instruction::ARR => self.arr(&opcode.addressing_mode),
+                Instruction::AXS => self.axs(&opcode.addressing_mode),
+                Instruction::LAX => self.lax(&opcode.addressing_mode),
+                Instruction::SAX => self.sax(&opcode.addressing_mode),
+                Instruction::DCP => self.dcp(&opcode.addressing_mode),
+                Instruction::ISC => self.isc(&opcode.addressing_mode),
+                Instruction::RLA => self.rla(&opcode.addressing_mode),
+                Instruction::RRA => self.rra(&opcode.addressing_mode),
+                Instruction::SLO => self.slo(&opcode.addressing_mode),
+                Instruction::SRE => self.sre(&opcode.addressing_mode),
+                Instruction::SKB => self.skb(&opcode.addressing_mode),
+                Instruction::IGN => self.ign(&opcode.addressing_mode),
             }
 
             self.register.pc += opcode.bytes as u16 - 1;
