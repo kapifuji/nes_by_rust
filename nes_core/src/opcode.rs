@@ -4,6 +4,7 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Instruction {
+    // Official Instruction
     /// Add with Carry
     ADC,
     /// Lgical AND
@@ -116,6 +117,37 @@ pub enum Instruction {
     TXS,
     /// Transfer Y to Stack Pointer
     TYA,
+    // Unofficial Instruction
+    /// AND & LSR(Accumulator)
+    ALR,
+    /// AND & copy N to C
+    ANC,
+    /// AND & ROR(Accumulator), C is bit 6 and V is bit 6 xor bit 5
+    ARR,
+    /// Set X to {(A AND X) - value}
+    AXS,
+    /// LDA & TAX
+    LAX,
+    /// Store A AND X
+    SAX,
+    /// DEC & CMP
+    DCP,
+    /// INC & SBC
+    ISC,
+    /// ROL & AND
+    RLA,
+    /// ROR & ADC
+    RRA,
+    /// ASL & ORA
+    SLO,
+    /// LSR & EOR
+    SRE,
+    /// Skip byte (= NOP)
+    SKB,
+    /// Ignore (= NOP)
+    IGN,
+}
+
 impl fmt::Display for Instruction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:?}", self)
@@ -126,6 +158,7 @@ impl fmt::Display for Instruction {
 // 仕方なく、Cpuの初期化時に作って持たせる。
 pub fn create_opcodes_map() -> HashMap<u8, Opcode> {
     let opcode_list: Vec<Opcode> = vec![
+        // Official Instruction
         Opcode::new(0x69, Instruction::ADC, 2, 2, AddressingMode::Immediate),
         Opcode::new(0x65, Instruction::ADC, 2, 3, AddressingMode::ZeroPage),
         Opcode::new(0x75, Instruction::ADC, 2, 4, AddressingMode::ZeroPageX),
@@ -277,6 +310,92 @@ pub fn create_opcodes_map() -> HashMap<u8, Opcode> {
         Opcode::new(0x8a, Instruction::TXA, 1, 2, AddressingMode::NoneAddressing),
         Opcode::new(0x9a, Instruction::TXS, 1, 2, AddressingMode::NoneAddressing),
         Opcode::new(0x98, Instruction::TYA, 1, 2, AddressingMode::NoneAddressing),
+        // Unofficial Instruction
+        Opcode::new(0x4b, Instruction::ALR, 2, 2, AddressingMode::Immediate),
+        Opcode::new(0x0b, Instruction::ANC, 2, 2, AddressingMode::Immediate),
+        Opcode::new(0x2b, Instruction::ANC, 2, 2, AddressingMode::Immediate),
+        Opcode::new(0x6b, Instruction::ARR, 2, 2, AddressingMode::Immediate),
+        Opcode::new(0xcb, Instruction::AXS, 2, 2, AddressingMode::Immediate),
+        Opcode::new(0xa3, Instruction::LAX, 2, 6, AddressingMode::IndirectX),
+        Opcode::new(0xa7, Instruction::LAX, 2, 3, AddressingMode::ZeroPage),
+        Opcode::new(0xaf, Instruction::LAX, 3, 4, AddressingMode::Absolute),
+        Opcode::new(0xb3, Instruction::LAX, 2, 5, AddressingMode::IndirectY),
+        Opcode::new(0xb7, Instruction::LAX, 2, 4, AddressingMode::ZeroPageY),
+        Opcode::new(0xbf, Instruction::LAX, 3, 4, AddressingMode::AbsoluteY),
+        Opcode::new(0x83, Instruction::SAX, 2, 6, AddressingMode::IndirectX),
+        Opcode::new(0x87, Instruction::SAX, 2, 3, AddressingMode::ZeroPage),
+        Opcode::new(0x8f, Instruction::SAX, 3, 4, AddressingMode::Absolute),
+        Opcode::new(0x97, Instruction::SAX, 2, 4, AddressingMode::ZeroPageY),
+        Opcode::new(0xc3, Instruction::DCP, 2, 8, AddressingMode::IndirectX),
+        Opcode::new(0xc7, Instruction::DCP, 2, 5, AddressingMode::ZeroPage),
+        Opcode::new(0xcf, Instruction::DCP, 3, 6, AddressingMode::Absolute),
+        Opcode::new(0xd3, Instruction::DCP, 2, 8, AddressingMode::IndirectY),
+        Opcode::new(0xd7, Instruction::DCP, 2, 6, AddressingMode::ZeroPageX),
+        Opcode::new(0xdb, Instruction::DCP, 3, 7, AddressingMode::AbsoluteY),
+        Opcode::new(0xdf, Instruction::DCP, 3, 7, AddressingMode::AbsoluteX),
+        Opcode::new(0xe3, Instruction::ISC, 2, 8, AddressingMode::IndirectX),
+        Opcode::new(0xe7, Instruction::ISC, 2, 5, AddressingMode::ZeroPage),
+        Opcode::new(0xef, Instruction::ISC, 3, 6, AddressingMode::Absolute),
+        Opcode::new(0xf3, Instruction::ISC, 2, 8, AddressingMode::IndirectY),
+        Opcode::new(0xf7, Instruction::ISC, 2, 6, AddressingMode::ZeroPageX),
+        Opcode::new(0xfb, Instruction::ISC, 3, 7, AddressingMode::AbsoluteY),
+        Opcode::new(0xff, Instruction::ISC, 3, 7, AddressingMode::AbsoluteX),
+        Opcode::new(0x23, Instruction::RLA, 2, 8, AddressingMode::IndirectX),
+        Opcode::new(0x27, Instruction::RLA, 2, 5, AddressingMode::ZeroPage),
+        Opcode::new(0x2f, Instruction::RLA, 3, 6, AddressingMode::Absolute),
+        Opcode::new(0x33, Instruction::RLA, 2, 8, AddressingMode::IndirectY),
+        Opcode::new(0x37, Instruction::RLA, 2, 6, AddressingMode::ZeroPageX),
+        Opcode::new(0x3b, Instruction::RLA, 3, 7, AddressingMode::AbsoluteY),
+        Opcode::new(0x3f, Instruction::RLA, 3, 7, AddressingMode::AbsoluteX),
+        Opcode::new(0x63, Instruction::RRA, 2, 8, AddressingMode::IndirectX),
+        Opcode::new(0x67, Instruction::RRA, 2, 5, AddressingMode::ZeroPage),
+        Opcode::new(0x6f, Instruction::RRA, 3, 6, AddressingMode::Absolute),
+        Opcode::new(0x73, Instruction::RRA, 2, 8, AddressingMode::IndirectY),
+        Opcode::new(0x77, Instruction::RRA, 2, 6, AddressingMode::ZeroPageX),
+        Opcode::new(0x7b, Instruction::RRA, 3, 7, AddressingMode::AbsoluteY),
+        Opcode::new(0x7f, Instruction::RRA, 3, 7, AddressingMode::AbsoluteX),
+        Opcode::new(0x03, Instruction::SLO, 2, 8, AddressingMode::IndirectX),
+        Opcode::new(0x07, Instruction::SLO, 2, 5, AddressingMode::ZeroPage),
+        Opcode::new(0x0f, Instruction::SLO, 3, 6, AddressingMode::Absolute),
+        Opcode::new(0x13, Instruction::SLO, 2, 8, AddressingMode::IndirectY),
+        Opcode::new(0x17, Instruction::SLO, 2, 6, AddressingMode::ZeroPageX),
+        Opcode::new(0x1b, Instruction::SLO, 3, 7, AddressingMode::AbsoluteY),
+        Opcode::new(0x1f, Instruction::SLO, 3, 7, AddressingMode::AbsoluteX),
+        Opcode::new(0x43, Instruction::SRE, 2, 8, AddressingMode::IndirectX),
+        Opcode::new(0x47, Instruction::SRE, 2, 5, AddressingMode::ZeroPage),
+        Opcode::new(0x4f, Instruction::SRE, 3, 6, AddressingMode::Absolute),
+        Opcode::new(0x53, Instruction::SRE, 2, 8, AddressingMode::IndirectY),
+        Opcode::new(0x57, Instruction::SRE, 2, 6, AddressingMode::ZeroPageX),
+        Opcode::new(0x5b, Instruction::SRE, 3, 7, AddressingMode::AbsoluteY),
+        Opcode::new(0x5f, Instruction::SRE, 3, 7, AddressingMode::AbsoluteX),
+        Opcode::new(0xeb, Instruction::SBC, 2, 2, AddressingMode::Immediate),
+        Opcode::new(0x1a, Instruction::NOP, 1, 2, AddressingMode::NoneAddressing),
+        Opcode::new(0x3a, Instruction::NOP, 1, 2, AddressingMode::NoneAddressing),
+        Opcode::new(0x5a, Instruction::NOP, 1, 2, AddressingMode::NoneAddressing),
+        Opcode::new(0x7a, Instruction::NOP, 1, 2, AddressingMode::NoneAddressing),
+        Opcode::new(0xda, Instruction::NOP, 1, 2, AddressingMode::NoneAddressing),
+        Opcode::new(0xfa, Instruction::NOP, 1, 2, AddressingMode::NoneAddressing),
+        Opcode::new(0x80, Instruction::SKB, 2, 2, AddressingMode::Immediate),
+        Opcode::new(0x82, Instruction::SKB, 2, 2, AddressingMode::Immediate),
+        Opcode::new(0x89, Instruction::SKB, 2, 2, AddressingMode::Immediate),
+        Opcode::new(0xc2, Instruction::SKB, 2, 2, AddressingMode::Immediate),
+        Opcode::new(0xe2, Instruction::SKB, 2, 2, AddressingMode::Immediate),
+        Opcode::new(0x0c, Instruction::IGN, 3, 4, AddressingMode::Absolute),
+        Opcode::new(0x1c, Instruction::IGN, 3, 4, AddressingMode::AbsoluteX), // cycles +1 if page crossed
+        Opcode::new(0x3c, Instruction::IGN, 3, 4, AddressingMode::AbsoluteX), // cycles +1 if page crossed
+        Opcode::new(0x5c, Instruction::IGN, 3, 4, AddressingMode::AbsoluteX), // cycles +1 if page crossed
+        Opcode::new(0x7c, Instruction::IGN, 3, 4, AddressingMode::AbsoluteX), // cycles +1 if page crossed
+        Opcode::new(0xdc, Instruction::IGN, 3, 4, AddressingMode::AbsoluteX), // cycles +1 if page crossed
+        Opcode::new(0xfc, Instruction::IGN, 3, 4, AddressingMode::AbsoluteX), // cycles +1 if page crossed
+        Opcode::new(0x04, Instruction::IGN, 2, 3, AddressingMode::ZeroPage),
+        Opcode::new(0x44, Instruction::IGN, 2, 3, AddressingMode::ZeroPage),
+        Opcode::new(0x64, Instruction::IGN, 2, 3, AddressingMode::ZeroPage),
+        Opcode::new(0x14, Instruction::IGN, 2, 4, AddressingMode::ZeroPageX),
+        Opcode::new(0x34, Instruction::IGN, 2, 4, AddressingMode::ZeroPageX),
+        Opcode::new(0x54, Instruction::IGN, 2, 4, AddressingMode::ZeroPageX),
+        Opcode::new(0x74, Instruction::IGN, 2, 4, AddressingMode::ZeroPageX),
+        Opcode::new(0xd4, Instruction::IGN, 2, 4, AddressingMode::ZeroPageX),
+        Opcode::new(0xf4, Instruction::IGN, 2, 4, AddressingMode::ZeroPageX),
     ];
 
     let mut map = HashMap::new();
