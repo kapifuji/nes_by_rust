@@ -1,3 +1,8 @@
+pub enum Mirroring {
+    Vertical,
+    Horizontal,
+    FourScreen,
+}
 /// 16 byte header
 #[derive(Clone, Default)]
 pub struct Header {
@@ -151,6 +156,17 @@ impl Header {
             flags9,
             flags10,
             unused,
+        }
+    }
+
+    pub fn read_mirroring(&self) -> Mirroring {
+        if self.flags6.ignore_mirroring == true {
+            return Mirroring::FourScreen;
+        }
+        if self.flags6.mirroring == true {
+            Mirroring::Vertical
+        } else {
+            Mirroring::Horizontal
         }
     }
 }
