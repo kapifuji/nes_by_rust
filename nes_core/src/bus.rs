@@ -1,22 +1,21 @@
-use crate::{cpu::PpuRegister, rom::Rom};
+use crate::{ppu::Ppu, rom::Rom};
 
 pub struct Bus {
     /// 0x0000 ~ 0x07FF (0x0100 ~ 0x01ff is stack)
     wram: [u8; 0x800],
     /// 0x2000 ~ 0x2007
-    ppu_register: PpuRegister,
+    ppu: Ppu,
     /// 0x8000 ~ 0xFFFF
-    rom: Rom,
+    program: Vec<u8>,
 }
 impl Bus {
     pub fn new(rom: &Rom) -> Self {
-        let wram: [u8; 0x800] = [0; 0x800];
-        let ppu_register = PpuRegister::default();
+        let ppu = Ppu::new(&rom.charactor, rom.header.read_mirroring());
 
         Self {
-            wram,
-            ppu_register,
-            rom: rom.clone(),
+            wram: [0; 0x800],
+            ppu,
+            program: rom.program.clone(),
         }
     }
 
@@ -24,10 +23,10 @@ impl Bus {
         let mut address = address - 0x8000;
         // Program ROM 大きさは 0x4000 または 0x8000
         // 0x4000の場合、0x4000以降へのアクセスは 0x0000 ~ 0x3FFF にミラーリングされる。
-        if self.rom.program.len() == 0x4000 && address >= 0x4000 {
+        if self.program.len() == 0x4000 && address >= 0x4000 {
             address = address % 0x4000;
         }
-        self.rom.program[address as usize]
+        self.program[address as usize]
     }
 
     pub fn read_memory_byte(&self, address: u16) -> u8 {
