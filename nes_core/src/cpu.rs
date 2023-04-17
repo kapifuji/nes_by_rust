@@ -358,14 +358,10 @@ impl Cpu {
 
     fn bxx_sub(&mut self, mode: &AddressingMode, target_status: bool, trigger: bool) {
         let address = self.get_operand_address(mode);
-        let offset = self.read_memory_byte(address);
+        let offset = self.read_memory_byte(address) as i8;
 
         if target_status == trigger {
-            if offset >= 0x80 {
-                self.register.pc += (offset - 0x80) as u16;
-            } else {
-                self.register.pc += offset as u16;
-            }
+            self.register.pc = self.register.pc.wrapping_add(offset as u16);
         }
     }
 
