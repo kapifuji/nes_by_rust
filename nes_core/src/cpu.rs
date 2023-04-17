@@ -294,10 +294,15 @@ impl Cpu {
 
         let old_a = self.register.a;
 
-        let ret = self
-            .register
-            .a
-            .overflowing_add(value + if self.register.p.c == true { 1 } else { 0 });
+        let ret = self.register.a.overflowing_add(value);
+
+        let over = ret.1;
+
+        let ret = ret
+            .0
+            .overflowing_add(if self.register.p.c == true { 1 } else { 0 });
+
+        let over = over | ret.1;
 
         // 演算結果
         self.register.a = ret.0;
@@ -306,7 +311,7 @@ impl Cpu {
         self.update_zero_and_negative_flags(self.register.a);
 
         // update c
-        self.register.p.c = if ret.1 == true { true } else { false };
+        self.register.p.c = if over == true { true } else { false };
 
         // update v (ref. http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html)
         self.register.p.v = if ((old_a ^ ret.0) & (value ^ ret.0) & 0x80) != 0 {
