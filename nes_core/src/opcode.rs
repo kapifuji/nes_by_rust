@@ -410,7 +410,7 @@ pub struct Opcode {
     code: u8,
     pub instruction: Instruction,
     pub bytes: u8,
-    cycles: u8,
+    pub cycles: u8,
     pub addressing_mode: AddressingMode,
 }
 
