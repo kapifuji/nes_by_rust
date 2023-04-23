@@ -166,6 +166,33 @@ impl ControlRegister {
 }
 
 #[derive(Default)]
+struct StatusRegister {
+    ppu_open_bus: u8,
+    sprite_overflow: bool,
+    sprite_0_hit: bool,
+    ///　Vertical blank has started (false: not in vblank; true: in vblank)
+    vertical_blank: bool,
+}
+
+impl StatusRegister {
+    fn new() -> Self {
+        StatusRegister::default()
+    }
+
+    fn is_vertical_blank(&self) -> bool {
+        self.vertical_blank
+    }
+
+    fn set_vertical_blank(&mut self) {
+        self.vertical_blank = true;
+    }
+
+    fn reset_vertical_blank(&mut self) {
+        self.vertical_blank = false;
+    }
+}
+
+#[derive(Default)]
 struct PpuRegister {
     ppu_control: u8,
     ppu_mask: u8,
