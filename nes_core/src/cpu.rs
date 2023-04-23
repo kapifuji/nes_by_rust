@@ -166,7 +166,7 @@ pub struct Cpu {
 impl Cpu {
     pub fn new(rom: &Rom) -> Cpu {
         let mut register = CpuRegister::new();
-        let bus = Bus::new(&rom);
+        let mut bus = Bus::new(&rom);
         let opcodes = create_opcodes_map();
 
         register.pc = bus.read_memory_word(0xfffc);
@@ -178,11 +178,11 @@ impl Cpu {
         }
     }
 
-    pub fn read_memory_byte(&self, address: u16) -> u8 {
+    pub fn read_memory_byte(&mut self, address: u16) -> u8 {
         self.bus.read_memory_byte(address)
     }
 
-    pub fn read_memory_word(&self, address: u16) -> u16 {
+    pub fn read_memory_word(&mut self, address: u16) -> u16 {
         self.bus.read_memory_word(address)
     }
 
@@ -199,8 +199,27 @@ impl Cpu {
         self.register.pc = self.read_memory_word(0xfffc);
     }
 
+    fn interrupt_nmi(&mut self) {
+        self.register.sp -= 1;
+        let sp = 0x0100 as u16 + self.register.sp as u16;
+        self.write_memory_word(sp, self.register.pc);
+        self.register.sp -= 1;
+
+        let mut status = self.register.p.read();
+        status &= !BIT4;
+        status |= BIT5;
+
+        let sp = 0x0100 as u16 + self.register.sp as u16;
+        self.write_memory_byte(sp, status);
+        self.register.p.write(self.register.p.read() | BIT2);
+        self.register.sp -= 1;
+
+        self.bus.tick(2);
+        self.register.pc = self.read_memory_word(0xfffa);
+    }
+
     /// アドレッシングモードに応じたアドレスを返します。
-    fn get_operand_address(&self, mode: &AddressingMode) -> u16 {
+    fn get_operand_address(&mut self, mode: &AddressingMode) -> u16 {
         match mode {
             AddressingMode::Immediate => self.register.pc,
             AddressingMode::ZeroPage => self.read_memory_byte(self.register.pc) as u16,
@@ -860,6 +879,10 @@ impl Cpu {
         F: FnMut(&mut Cpu),
     {
         loop {
+            if self.bus.poll_nmi_status() {
+                self.interrupt_nmi();
+            }
+
             callback(self);
 
             let code = self.read_memory_byte(self.register.pc);
@@ -1006,7 +1029,7 @@ mod tests {
             program.push(i);
         }
         let rom = create_test_rom(&program);
-        let cpu = Cpu::new(&rom);
+        let mut cpu = Cpu::new(&rom);
 
         assert_eq!(cpu.register.sp, 0xfd);
         assert_eq!(cpu.bus.read_memory_byte(0x8002), 0x02);
