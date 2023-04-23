@@ -901,10 +901,12 @@ impl Cpu {
                 Instruction::INY => self.iny(),
                 Instruction::JMP => {
                     self.jmp(&opcode.addressing_mode);
+                    self.bus.tick(opcode.cycles);
                     continue; // PCを動かさない。
                 }
                 Instruction::JSR => {
                     self.jsr(&opcode.addressing_mode);
+                    self.bus.tick(opcode.cycles);
                     continue; // PCを動かさない。
                 }
                 Instruction::LDA => self.lda(&opcode.addressing_mode),
@@ -921,10 +923,12 @@ impl Cpu {
                 Instruction::ROR => self.ror(&opcode.addressing_mode),
                 Instruction::RTI => {
                     self.rti();
+                    self.bus.tick(opcode.cycles);
                     continue; // PCを動かさない。
                 }
                 Instruction::RTS => {
                     self.rts();
+                    self.bus.tick(opcode.cycles);
                     continue; // PCを動かさない。
                 }
                 Instruction::SBC => self.sbc(&opcode.addressing_mode),
@@ -955,6 +959,8 @@ impl Cpu {
                 Instruction::SKB => self.skb(&opcode.addressing_mode),
                 Instruction::IGN => self.ign(&opcode.addressing_mode),
             }
+
+            self.bus.tick(opcode.cycles);
 
             self.register.pc += opcode.bytes as u16 - 1;
         }

@@ -7,6 +7,8 @@ pub struct Bus {
     ppu: Ppu,
     /// 0x8000 ~ 0xFFFF
     program: Vec<u8>,
+
+    cycles: usize,
 }
 impl Bus {
     pub fn new(rom: &Rom) -> Self {
@@ -16,7 +18,13 @@ impl Bus {
             wram: [0; 0x800],
             ppu,
             program: rom.program.clone(),
+            cycles: 0,
         }
+    }
+
+    pub fn tick(&mut self, cycles: u8) {
+        self.cycles += cycles as usize;
+        self.ppu.tick(cycles * 3); // PPUのクロックはCPUの3倍
     }
 
     fn read_program_rom_byte(&self, address: u16) -> u8 {
