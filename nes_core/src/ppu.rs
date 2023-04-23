@@ -1,5 +1,13 @@
 use crate::rom::Mirroring;
 
+const BIT0: u8 = 0b0000_0001;
+const BIT1: u8 = 0b0000_0010;
+const BIT2: u8 = 0b0000_0100;
+const BIT3: u8 = 0b0000_1000;
+const BIT4: u8 = 0b0001_0000;
+const BIT5: u8 = 0b0010_0000;
+const BIT6: u8 = 0b0100_0000;
+const BIT7: u8 = 0b1000_0000;
 
 struct AddressRegister {
     /// 上位アドレス
@@ -68,6 +76,92 @@ impl AddressRegister {
 
     pub fn get(&self) -> u16 {
         ((self.value_high as u16) << 8) | (self.value_low as u16)
+    }
+}
+
+#[derive(Default)]
+struct ControlRegister {
+    /// bit0 - 1
+    ///
+    /// Base nametable address
+    /// (0 = $2000; 1 = $2400; 2 = $2800; 3 = $2C00)
+    nametable: u8,
+    /// bit2
+    ///
+    /// VRAM address increment per CPU read/write of PPUDATA
+    ///  (0: add 1, going across; 1: add 32, going down)
+    vram_add_increment: bool,
+    /// bit3
+    ///
+    /// Sprite pattern table address for 8x8 sprites
+    /// (0: $0000; 1: $1000; ignored in 8x16 mode)
+    sprite_pattern_address: bool,
+    /// bit4
+    ///
+    /// Background pattern table address (0: $0000; 1: $1000)
+    background_pattern_address: bool,
+    /// bit5
+    ///
+    /// Sprite size (0: 8x8 pixels; 1: 8x16 pixels)
+    sprite_size: bool,
+    /// bit6
+    ///
+    /// PPU master/slave select
+    /// (0: read backdrop from EXT pins; 1: output color on EXT pins)
+    master_lave_select: bool,
+    /// bit7
+    ///
+    /// Generate an NMI at the start of the
+    /// vertical blanking interval (0: off; 1: on)
+    generate_nmi: bool,
+}
+
+impl ControlRegister {
+    pub fn new() -> Self {
+        ControlRegister::default()
+    }
+
+    pub fn vram_address_increment(&self) -> u8 {
+        if !self.vram_add_increment {
+            1
+        } else {
+            32
+        }
+    }
+
+    pub fn update(&mut self, data: u8) {
+        self.nametable = data & (BIT0 | BIT1);
+        self.vram_add_increment = if data & BIT2 == BIT2 { true } else { false };
+        self.sprite_pattern_address = if data & BIT3 == BIT3 { true } else { false };
+        self.background_pattern_address = if data & BIT4 == BIT4 { true } else { false };
+        self.sprite_size = if data & BIT5 == BIT5 { true } else { false };
+        self.master_lave_select = if data & BIT6 == BIT6 { true } else { false };
+        self.generate_nmi = if data & BIT7 == BIT7 { true } else { false };
+    }
+
+    pub fn read(&self) -> u8 {
+        let mut result = match self.nametable {
+            1 => BIT0,
+            2 => BIT1,
+            3 => BIT0 | BIT1,
+            _ => 0,
+        };
+        result |= if self.vram_add_increment { BIT2 } else { 0 };
+        result |= if self.sprite_pattern_address { BIT3 } else { 0 };
+        result |= if self.background_pattern_address {
+            BIT4
+        } else {
+            0
+        };
+        result |= if self.sprite_size { BIT5 } else { 0 };
+        result |= if self.master_lave_select { BIT6 } else { 0 };
+        result |= if self.generate_nmi { BIT7 } else { 0 };
+
+        result
+    }
+
+    pub fn read_generate_nmi(&self) -> bool {
+        self.generate_nmi
     }
 }
 
