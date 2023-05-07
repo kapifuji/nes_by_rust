@@ -35,12 +35,14 @@ impl Default for CpuRegister {
             x: 0x00,
             y: 0x00,
             p: StatusRegister::new(),
-            sp: 0xfd,
+            sp: Self::DEFAULT_SP,
             pc: 0x00,
         }
     }
 }
 impl CpuRegister {
+    const DEFAULT_SP: u8 = 0xfd;
+
     pub fn new() -> Self {
         Default::default()
     }
@@ -163,13 +165,14 @@ pub struct Cpu {
     opcodes: HashMap<u8, Opcode>,
 }
 
-impl Cpu {
-    pub fn new(rom: &Rom) -> Cpu {
+    const DEFAULT_PC_ADDRESS: u16 = 0xfffc;
+    const STACK_BASE_ADDRESS: u16 = 0x0100;
+
         let mut register = CpuRegister::new();
         let mut bus = Bus::new(&rom);
         let opcodes = create_opcodes_map();
 
-        register.pc = bus.read_memory_word(0xfffc);
+        register.pc = bus.read_memory_word(Self::DEFAULT_PC_ADDRESS);
 
         Self {
             register,
@@ -196,7 +199,7 @@ impl Cpu {
 
     pub fn reset(&mut self) {
         self.register = CpuRegister::new();
-        self.register.pc = self.read_memory_word(0xfffc);
+        self.register.pc = self.read_memory_word(Self::DEFAULT_PC_ADDRESS);
     }
 
     fn interrupt_nmi(&mut self) {
