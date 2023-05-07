@@ -1,6 +1,6 @@
 use crate::{ppu::Ppu, rom::Rom};
 
-pub struct Bus {
+pub struct Bus<'call> {
     /// 0x0000 ~ 0x07FF (0x0100 ~ 0x01ff is stack)
     wram: [u8; 0x800],
     /// 0x2000 ~ 0x2007
@@ -9,22 +9,34 @@ pub struct Bus {
     program: Vec<u8>,
 
     cycles: usize,
+    gameloop_callback: Box<dyn FnMut(&Ppu) + 'call>,
 }
-impl Bus {
-    pub fn new(rom: &Rom) -> Self {
+impl<'a> Bus<'a> {
+    pub fn new<'call, F>(rom: &Rom, gameloop_callback: F) -> Bus<'call>
+    where
+        F: FnMut(&Ppu) + 'call,
+    {
         let ppu = Ppu::new(&rom.charactor, rom.header.read_mirroring());
 
-        Self {
+        Bus {
             wram: [0; 0x800],
             ppu,
             program: rom.program.clone(),
             cycles: 0,
+            gameloop_callback: Box::from(gameloop_callback),
         }
     }
 
     pub fn tick(&mut self, cycles: u8) {
         self.cycles += cycles as usize;
+
+        let nmi_before = self.ppu.poll_nmi_interrupt();
         self.ppu.tick(cycles * 3); // PPUのクロックはCPUの3倍
+        let nmi_after = self.ppu.poll_nmi_interrupt();
+
+        if !nmi_before && nmi_after {
+            (self.gameloop_callback)(&self.ppu);
+        }
     }
 
     fn read_program_rom_byte(&self, address: u16) -> u8 {
