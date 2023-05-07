@@ -4,6 +4,7 @@ use crate::{
     ppu::Ppu,
     rom::Rom,
 };
+use bitflags::bitflags;
 use std::collections::HashMap;
 
 const BIT0: u8 = 0b0000_0001;
@@ -15,27 +16,28 @@ const BIT5: u8 = 0b0010_0000;
 const BIT6: u8 = 0b0100_0000;
 const BIT7: u8 = 0b1000_0000;
 
-struct CpuRegister {
+pub struct CpuRegister {
     /// Accumulator
-    a: u8,
+    pub a: u8,
     /// Index Register X
-    x: u8,
+    pub x: u8,
     /// Index Register Y
-    y: u8,
+    pub y: u8,
     /// Processor status
-    p: StatusRegister,
+    pub p: StatusRegister,
     /// Stack Pointer
-    sp: u8,
+    pub sp: u8,
     /// Program Counter
-    pc: u16,
+    pub pc: u16,
 }
+
 impl Default for CpuRegister {
     fn default() -> Self {
         Self {
             a: 0x00,
             x: 0x00,
             y: 0x00,
-            p: StatusRegister::new(),
+            p: StatusRegister::default(),
             sp: Self::DEFAULT_SP,
             pc: 0x00,
         }
@@ -49,97 +51,38 @@ impl CpuRegister {
     }
 }
 
-struct StatusRegister {
-    /// bit7 negative
-    /// 演算結果が1のときセット
-    n: bool,
-    /// bit6 overflow
-    /// 演算結果がオーバーフローを起こした時にセット
-    v: bool,
-    /// bit5 reserved
-    /// 常にセット
-    r: bool,
-    /// bit4 break mode
-    /// BRK発生時にセット、IRQ発生時にクリア
-    b: bool,
-    /// bit3 decimal mode
-    /// 0: デフォルト、1: BCDモード
-    d: bool,
-    /// bit2 not allowed IRQ
-    /// false: IRQ許可、true: IRQ禁止
-    i: bool,
-    /// bit1 zero
-    /// 演算結果が0の時にセット
-    z: bool,
-    /// bit0 carry
-    /// キャリー発生時にセット
-    c: bool,
+bitflags! {
+    pub struct StatusRegister: u8{
+        /// bit7 negative
+        /// 演算結果が1のときセット
+        const n = BIT7;
+        /// bit6 overflow
+        /// 演算結果がオーバーフローを起こした時にセット
+        const v = BIT6;
+        /// bit5 reserved
+        /// 常にセット
+        const r = BIT5;
+        /// bit4 break mode
+        /// BRK発生時にセット、IRQ発生時にクリア
+        const b = BIT4;
+        /// bit3 decimal mode
+        /// 0: デフォルト、1: BCDモード
+        const d = BIT3;
+        /// bit2 not allowed IRQ
+        /// false: IRQ許可、true: IRQ禁止
+        const i = BIT2;
+        /// bit1 zero
+        /// 演算結果が0の時にセット
+        const z = BIT1;
+        /// bit0 carry
+        /// キャリー発生時にセット
+        const c = BIT0;
+    }
 }
+
 impl Default for StatusRegister {
     fn default() -> Self {
-        Self {
-            n: false,
-            v: false,
-            r: true,
-            b: false,
-            d: false,
-            i: true,
-            z: false,
-            c: false,
-        }
-    }
-}
-impl StatusRegister {
-    pub fn new() -> Self {
-        Default::default()
-    }
-
-    pub fn write(&mut self, byte: u8) {
-        self.n = if (byte & BIT7) != 0 { true } else { false };
-        self.v = if (byte & BIT6) != 0 { true } else { false };
-        self.r = if (byte & BIT5) != 0 { true } else { false };
-        self.b = if (byte & BIT4) != 0 { true } else { false };
-        self.d = if (byte & BIT3) != 0 { true } else { false };
-        self.i = if (byte & BIT2) != 0 { true } else { false };
-        self.z = if (byte & BIT1) != 0 { true } else { false };
-        self.c = if (byte & BIT0) != 0 { true } else { false };
-    }
-
-    pub fn read(&self) -> u8 {
-        let mut result: u8 = 0;
-        if self.n == true {
-            result |= BIT7;
-        };
-
-        if self.v == true {
-            result |= BIT6;
-        }
-
-        if self.r == true {
-            result |= BIT5;
-        }
-
-        if self.b == true {
-            result |= BIT4;
-        }
-
-        if self.d == true {
-            result |= BIT3;
-        }
-
-        if self.i == true {
-            result |= BIT2;
-        }
-
-        if self.z == true {
-            result |= BIT1;
-        }
-
-        if self.c == true {
-            result |= BIT0;
-        }
-
-        result
+        Self::r | Self::i
     }
 }
 
@@ -199,25 +142,51 @@ impl<'a> Cpu<'a> {
         self.bus.write_memory_word(address, value)
     }
 
+    fn stack_push_byte(&mut self, value: u8) {
+        let sp = Self::STACK_BASE_ADDRESS + self.register.sp as u16;
+        self.write_memory_byte(sp, value);
+        self.register.sp -= 1;
+    }
+
+    fn stack_push_word(&mut self, value: u16) {
+        self.register.sp -= 1;
+        let sp = Self::STACK_BASE_ADDRESS + self.register.sp as u16;
+        self.write_memory_word(sp, value);
+        self.register.sp -= 1;
+    }
+
+    fn stack_pop_byte(&mut self) -> u8 {
+        self.register.sp += 1;
+
+        let sp = Self::STACK_BASE_ADDRESS + self.register.sp as u16;
+        self.read_memory_byte(sp)
+    }
+
+    fn stack_pop_word(&mut self) -> u16 {
+        self.register.sp += 1;
+
+        let sp = Self::STACK_BASE_ADDRESS + self.register.sp as u16;
+        let result = self.read_memory_word(sp);
+
+        self.register.sp += 1;
+
+        result
+    }
+
     pub fn reset(&mut self) {
         self.register = CpuRegister::new();
         self.register.pc = self.read_memory_word(Self::DEFAULT_PC_ADDRESS);
     }
 
     fn interrupt_nmi(&mut self) {
-        self.register.sp -= 1;
-        let sp = 0x0100 as u16 + self.register.sp as u16;
-        self.write_memory_word(sp, self.register.pc);
-        self.register.sp -= 1;
+        self.stack_push_word(self.register.pc);
 
-        let mut status = self.register.p.read();
+        let mut status = self.register.p.bits();
         status &= !BIT4;
         status |= BIT5;
 
-        let sp = 0x0100 as u16 + self.register.sp as u16;
-        self.write_memory_byte(sp, status);
-        self.register.p.write(self.register.p.read() | BIT2);
-        self.register.sp -= 1;
+        self.stack_push_byte(status);
+        self.register.p = StatusRegister::from_bits(self.register.p.bits() | BIT2).unwrap();
 
         self.bus.tick(2);
         self.register.pc = self.read_memory_word(0xfffa);
@@ -308,7 +277,11 @@ impl<'a> Cpu<'a> {
 
         let ret = ret
             .0
-            .overflowing_add(if self.register.p.c == true { 1 } else { 0 });
+            .overflowing_add(if self.register.p.contains(StatusRegister::c) == true {
+                1
+            } else {
+                0
+            });
 
         let over = over | ret.1;
 
@@ -319,13 +292,13 @@ impl<'a> Cpu<'a> {
         self.update_zero_and_negative_flags(self.register.a);
 
         // update c
-        self.register.p.c = if over == true { true } else { false };
+        self.register.p.set(StatusRegister::c, over);
 
         // update v (ref. http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html)
-        self.register.p.v = if ((old_a ^ ret.0) & (value ^ ret.0) & 0x80) != 0 {
-            true
+        if ((old_a ^ ret.0) & (value ^ ret.0) & BIT7) != 0 {
+            self.register.p.insert(StatusRegister::v);
         } else {
-            false
+            self.register.p.remove(StatusRegister::v);
         }
     }
 
@@ -352,7 +325,11 @@ impl<'a> Cpu<'a> {
 
         let result = old_value << 1;
 
-        self.register.p.c = if (old_value & 0x80) == 0 { false } else { true };
+        if (old_value & BIT7) == 0 {
+            self.register.p.remove(StatusRegister::c);
+        } else {
+            self.register.p.insert(StatusRegister::c);
+        };
 
         if *mode == AddressingMode::Accumulator {
             self.register.a = result
@@ -374,15 +351,15 @@ impl<'a> Cpu<'a> {
     }
 
     fn bcc(&mut self, mode: &AddressingMode) {
-        self.bxx_sub(mode, self.register.p.c, false);
+        self.bxx_sub(mode, self.register.p.contains(StatusRegister::c), false);
     }
 
     fn bcs(&mut self, mode: &AddressingMode) {
-        self.bxx_sub(mode, self.register.p.c, true);
+        self.bxx_sub(mode, self.register.p.contains(StatusRegister::c), true);
     }
 
     fn beq(&mut self, mode: &AddressingMode) {
-        self.bxx_sub(mode, self.register.p.z, true);
+        self.bxx_sub(mode, self.register.p.contains(StatusRegister::z), true);
     }
 
     fn bit(&mut self, mode: &AddressingMode) {
@@ -391,65 +368,55 @@ impl<'a> Cpu<'a> {
 
         let reault = value & self.register.a;
 
-        self.register.p.z = if reault == 0x00 { true } else { false };
-
-        self.register.p.v = if value & 0b0100_0000 != 0x00 {
-            true
-        } else {
-            false
-        };
-
-        self.register.p.n = if value & 0b1000_0000 != 0x00 {
-            true
-        } else {
-            false
-        };
+        self.register.p.set(StatusRegister::z, reault == 0x00);
+        self.register.p.set(StatusRegister::v, value & BIT6 != 0x00);
+        self.register.p.set(StatusRegister::n, value & BIT7 != 0x00);
     }
 
     fn bmi(&mut self, mode: &AddressingMode) {
-        self.bxx_sub(mode, self.register.p.n, true);
+        self.bxx_sub(mode, self.register.p.contains(StatusRegister::n), true);
     }
 
     fn bne(&mut self, mode: &AddressingMode) {
-        self.bxx_sub(mode, self.register.p.z, false);
+        self.bxx_sub(mode, self.register.p.contains(StatusRegister::z), false);
     }
 
     fn bpl(&mut self, mode: &AddressingMode) {
-        self.bxx_sub(mode, self.register.p.n, false);
+        self.bxx_sub(mode, self.register.p.contains(StatusRegister::n), false);
     }
 
     fn bvc(&mut self, mode: &AddressingMode) {
-        self.bxx_sub(mode, self.register.p.v, false);
+        self.bxx_sub(mode, self.register.p.contains(StatusRegister::v), false);
     }
 
     fn bvs(&mut self, mode: &AddressingMode) {
-        self.bxx_sub(mode, self.register.p.v, true);
+        self.bxx_sub(mode, self.register.p.contains(StatusRegister::v), true);
     }
 
     fn clc(&mut self) {
-        self.register.p.c = false;
+        self.register.p.remove(StatusRegister::c);
     }
 
     fn cld(&mut self) {
-        self.register.p.d = false;
+        self.register.p.remove(StatusRegister::d);
     }
 
     fn cli(&mut self) {
-        self.register.p.i = false;
+        self.register.p.remove(StatusRegister::i);
     }
 
     fn clv(&mut self) {
-        self.register.p.v = false;
+        self.register.p.remove(StatusRegister::v);
     }
 
     fn cmp_sub(&mut self, mode: &AddressingMode, subtracted_value: u8) {
         let address = self.get_operand_address(mode);
         let cmp_value = self.read_memory_byte(address);
 
-        self.register.p.c = if subtracted_value >= cmp_value {
-            true
+        if subtracted_value >= cmp_value {
+            self.register.p.insert(StatusRegister::c);
         } else {
-            false
+            self.register.p.remove(StatusRegister::c);
         };
 
         let result = subtracted_value.wrapping_sub(cmp_value);
@@ -524,14 +491,8 @@ impl<'a> Cpu<'a> {
     }
 
     fn jsr(&mut self, mode: &AddressingMode) {
-        self.register.sp -= 1;
-
-        let sp = 0x0100 as u16 + self.register.sp as u16;
         // 命令長分+3（事前に+1済み）、RTSとの対応で-1しておく。（test ROMに合わせた実装）
-        let return_pc = self.register.pc + 2 - 1;
-        self.write_memory_word(sp, return_pc);
-
-        self.register.sp -= 1;
+        self.stack_push_word(self.register.pc + 2 - 1);
 
         let address = self.get_operand_address(mode);
         self.register.pc = address;
@@ -571,7 +532,11 @@ impl<'a> Cpu<'a> {
 
         let result = old_value >> 1;
 
-        self.register.p.c = if (old_value & 0x01) == 0 { false } else { true };
+        if (old_value & 0x01) == 0 {
+            self.register.p.remove(StatusRegister::c);
+        } else {
+            self.register.p.insert(StatusRegister::c);
+        };
 
         if *mode == AddressingMode::Accumulator {
             self.register.a = result;
@@ -596,35 +561,23 @@ impl<'a> Cpu<'a> {
     }
 
     fn pha(&mut self) {
-        let sp = 0x0100 as u16 + self.register.sp as u16;
-        self.write_memory_byte(sp, self.register.a);
-
-        self.register.sp -= 1;
+        self.stack_push_byte(self.register.a);
     }
 
     fn php(&mut self) {
-        let sp = 0x0100 as u16 + self.register.sp as u16;
-        let data = self.register.p.read() | BIT4 | BIT5; // PHP は bit4 と BIT5 を設定した値を Push する。
-        self.write_memory_byte(sp, data);
-
-        self.register.sp -= 1;
+        // PHP は bit4 と BIT5 を設定した値を Push する。
+        self.stack_push_byte(self.register.p.bits() | BIT4 | BIT5);
     }
 
     fn pla(&mut self) {
-        self.register.sp += 1;
-
-        let sp = 0x0100 as u16 + self.register.sp as u16;
-        self.register.a = self.read_memory_byte(sp);
-
+        self.register.a = self.stack_pop_byte();
         self.update_zero_and_negative_flags(self.register.a);
     }
 
     fn plp(&mut self) {
-        self.register.sp += 1;
-
-        let sp = 0x0100 as u16 + self.register.sp as u16;
-        let data = (self.read_memory_byte(sp) & (!BIT4)) | BIT5; // PLP は bit4 を無視する。またbit5は常にセット。
-        self.register.p.write(data);
+        // PLP は bit4 を無視する。また、bit5は常にセット。
+        let data = (self.stack_pop_byte() & (!BIT4)) | BIT5;
+        self.register.p = StatusRegister::from_bits(data).unwrap();
     }
 
     fn rol(&mut self, mode: &AddressingMode) {
@@ -635,13 +588,17 @@ impl<'a> Cpu<'a> {
             self.read_memory_byte(address)
         };
 
-        let result = if self.register.p.c == true {
+        let result = if self.register.p.contains(StatusRegister::c) == true {
             (old_value << 1) | 0x01
         } else {
             old_value << 1
         };
 
-        self.register.p.c = if (old_value & 0x80) == 0 { false } else { true };
+        if (old_value & BIT7) == 0 {
+            self.register.p.remove(StatusRegister::c);
+        } else {
+            self.register.p.insert(StatusRegister::c);
+        };
 
         if *mode == AddressingMode::Accumulator {
             self.register.a = result
@@ -661,13 +618,17 @@ impl<'a> Cpu<'a> {
             self.read_memory_byte(address)
         };
 
-        let result = if self.register.p.c == true {
-            (old_value >> 1) | 0x80
+        let result = if self.register.p.contains(StatusRegister::c) == true {
+            (old_value >> 1) | BIT7
         } else {
             old_value >> 1
         };
 
-        self.register.p.c = if (old_value & 0x01) == 0 { false } else { true };
+        if (old_value & 0x01) == 0 {
+            self.register.p.remove(StatusRegister::c);
+        } else {
+            self.register.p.insert(StatusRegister::c);
+        };
 
         if *mode == AddressingMode::Accumulator {
             self.register.a = result;
@@ -682,22 +643,12 @@ impl<'a> Cpu<'a> {
     fn rti(&mut self) {
         self.plp(); // pull Processor Status
 
-        self.register.sp += 1;
-
-        let sp = 0x0100 as u16 + self.register.sp as u16;
-        self.register.pc = self.read_memory_word(sp);
-
-        self.register.sp += 1;
+        self.register.pc = self.stack_pop_word();
     }
 
     fn rts(&mut self) {
-        self.register.sp += 1;
-
-        let sp = 0x0100 as u16 + self.register.sp as u16;
         // JSRで-1しているので+1（test ROMに合わせた実装）
-        self.register.pc = self.read_memory_word(sp) + 1;
-
-        self.register.sp += 1;
+        self.register.pc = self.stack_pop_word() + 1;
     }
 
     fn sbc(&mut self, mode: &AddressingMode) {
@@ -705,15 +656,15 @@ impl<'a> Cpu<'a> {
     }
 
     fn sec(&mut self) {
-        self.register.p.c = true;
+        self.register.p.insert(StatusRegister::c);
     }
 
     fn sed(&mut self) {
-        self.register.p.d = true;
+        self.register.p.insert(StatusRegister::d);
     }
 
     fn sei(&mut self) {
-        self.register.p.i = true;
+        self.register.p.insert(StatusRegister::i);
     }
 
     fn sta(&mut self, mode: &AddressingMode) {
@@ -772,7 +723,10 @@ impl<'a> Cpu<'a> {
 
     fn anc(&mut self, mode: &AddressingMode) {
         self.and(mode);
-        self.register.p.c = self.register.p.z;
+        self.register.p.set(
+            StatusRegister::c,
+            self.register.p.contains(StatusRegister::z),
+        );
     }
 
     fn arr(&mut self, mode: &AddressingMode) {
@@ -780,16 +734,16 @@ impl<'a> Cpu<'a> {
 
         let old_value = self.register.a;
 
-        let result = if self.register.p.c == true {
-            (old_value >> 1) | 0x80
+        let result = if self.register.p.contains(StatusRegister::c) == true {
+            (old_value >> 1) | BIT7
         } else {
             old_value >> 1
         };
 
         let bit6 = (old_value & BIT6) == BIT6;
         let bit5 = (old_value & BIT5) == BIT5;
-        self.register.p.c = bit6;
-        self.register.p.v = bit6 ^ bit5;
+        self.register.p.set(StatusRegister::c, bit6);
+        self.register.p.set(StatusRegister::v, bit6 ^ bit5);
 
         self.register.a = result;
 
@@ -806,7 +760,7 @@ impl<'a> Cpu<'a> {
         self.register.x = result;
 
         if value <= x_and_a {
-            self.register.p.c = true;
+            self.register.p.insert(StatusRegister::c);
         }
         self.update_zero_and_negative_flags(result);
     }
@@ -866,13 +820,11 @@ impl<'a> Cpu<'a> {
     }
 
     fn update_zero_and_negative_flags(&mut self, result: u8) {
-        self.register.p.z = if result == 0 { true } else { false };
+        self.register.p.set(StatusRegister::z, result == 0);
 
-        self.register.p.n = if (result & 0b1000_0000) != 0 {
-            true
-        } else {
-            false
-        };
+        self.register
+            .p
+            .set(StatusRegister::n, (result & 0b1000_0000) != 0);
     }
 
     pub fn run(&mut self) {
@@ -1062,13 +1014,13 @@ mod tests {
         let bus = create_test_bus(&program);
         let mut cpu = Cpu::new(bus);
         cpu.register.a = 0x50;
-        cpu.register.p.c = true;
-        cpu.register.p.v = true;
+        cpu.register.p.insert(StatusRegister::c);
+        cpu.register.p.insert(StatusRegister::v);
         cpu.run();
 
         assert_eq!(cpu.register.a, 0x61);
-        assert_eq!(cpu.register.p.c, false);
-        assert_eq!(cpu.register.p.v, false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::c), false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::v), false);
     }
 
     #[test]
@@ -1077,12 +1029,12 @@ mod tests {
         let bus = create_test_bus(&program);
         let mut cpu = Cpu::new(bus);
         cpu.register.a = 0x50;
-        cpu.register.p.c = true;
+        cpu.register.p.insert(StatusRegister::c);
         cpu.run();
 
         assert_eq!(cpu.register.a, 0xa1);
-        assert_eq!(cpu.register.p.c, false);
-        assert_eq!(cpu.register.p.v, true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::c), false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::v), true);
     }
 
     #[test]
@@ -1091,12 +1043,12 @@ mod tests {
         let bus = create_test_bus(&program);
         let mut cpu = Cpu::new(bus);
         cpu.register.a = 0xd0;
-        cpu.register.p.c = false;
+        cpu.register.p.remove(StatusRegister::c);
         cpu.run();
 
         assert_eq!(cpu.register.a, 0x60);
-        assert_eq!(cpu.register.p.c, true);
-        assert_eq!(cpu.register.p.v, true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::c), true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::v), true);
     }
 
     #[test]
@@ -1108,8 +1060,8 @@ mod tests {
         cpu.run();
 
         assert_eq!(cpu.register.a, 0xf0);
-        assert_eq!(cpu.register.p.z, false);
-        assert_eq!(cpu.register.p.n, true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::z), false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::n), true);
     }
 
     #[test]
@@ -1122,8 +1074,8 @@ mod tests {
         cpu.run();
 
         assert_eq!(cpu.register.a, 0xf0);
-        assert_eq!(cpu.register.p.z, false);
-        assert_eq!(cpu.register.p.n, true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::z), false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::n), true);
     }
 
     #[test]
@@ -1137,8 +1089,8 @@ mod tests {
         cpu.run();
 
         assert_eq!(cpu.register.a, 0xf0);
-        assert_eq!(cpu.register.p.z, false);
-        assert_eq!(cpu.register.p.n, true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::z), false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::n), true);
     }
 
     #[test]
@@ -1151,8 +1103,8 @@ mod tests {
         cpu.run();
 
         assert_eq!(cpu.register.a, 0xf0);
-        assert_eq!(cpu.register.p.z, false);
-        assert_eq!(cpu.register.p.n, true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::z), false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::n), true);
     }
 
     #[test]
@@ -1166,8 +1118,8 @@ mod tests {
         cpu.run();
 
         assert_eq!(cpu.register.a, 0xf0);
-        assert_eq!(cpu.register.p.z, false);
-        assert_eq!(cpu.register.p.n, true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::z), false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::n), true);
     }
 
     #[test]
@@ -1181,8 +1133,8 @@ mod tests {
         cpu.run();
 
         assert_eq!(cpu.register.a, 0xf0);
-        assert_eq!(cpu.register.p.z, false);
-        assert_eq!(cpu.register.p.n, true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::z), false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::n), true);
     }
 
     #[test]
@@ -1197,8 +1149,8 @@ mod tests {
         cpu.run();
 
         assert_eq!(cpu.register.a, 0xf0);
-        assert_eq!(cpu.register.p.z, false);
-        assert_eq!(cpu.register.p.n, true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::z), false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::n), true);
     }
 
     #[test]
@@ -1213,8 +1165,8 @@ mod tests {
         cpu.run();
 
         assert_eq!(cpu.register.a, 0xf0);
-        assert_eq!(cpu.register.p.z, false);
-        assert_eq!(cpu.register.p.n, true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::z), false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::n), true);
     }
 
     #[test]
@@ -1226,9 +1178,9 @@ mod tests {
         cpu.run();
 
         assert_eq!(cpu.register.a, 0b1001_1110);
-        assert_eq!(cpu.register.p.c, true);
-        assert_eq!(cpu.register.p.z, false);
-        assert_eq!(cpu.register.p.n, true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::c), true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::z), false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::n), true);
     }
 
     #[test]
@@ -1241,9 +1193,9 @@ mod tests {
 
         let result = cpu.read_memory_byte(0x0010);
         assert_eq!(result, 0b0001_1110);
-        assert_eq!(cpu.register.p.c, false);
-        assert_eq!(cpu.register.p.z, false);
-        assert_eq!(cpu.register.p.n, false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::c), false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::z), false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::n), false);
     }
 
     #[test]
@@ -1251,7 +1203,7 @@ mod tests {
         let program = vec![0x90, 0x01, 0x00, 0x0a, 0x00];
         let bus = create_test_bus(&program);
         let mut cpu = Cpu::new(bus);
-        cpu.register.p.c = false;
+        cpu.register.p.remove(StatusRegister::c);
         cpu.register.a = 0b0000_0001;
         cpu.run();
 
@@ -1263,7 +1215,7 @@ mod tests {
         let program = vec![0x90, 0x01, 0x00, 0x0a, 0x00];
         let bus = create_test_bus(&program);
         let mut cpu = Cpu::new(bus);
-        cpu.register.p.c = true;
+        cpu.register.p.insert(StatusRegister::c);
         cpu.register.a = 0b0000_0001;
         cpu.run();
 
@@ -1275,7 +1227,7 @@ mod tests {
         let program = vec![0xb0, 0x01, 0x00, 0x0a, 0x00];
         let bus = create_test_bus(&program);
         let mut cpu = Cpu::new(bus);
-        cpu.register.p.c = true;
+        cpu.register.p.insert(StatusRegister::c);
         cpu.register.a = 0b0000_0001;
         cpu.run();
 
@@ -1287,7 +1239,7 @@ mod tests {
         let program = vec![0xb0, 0x01, 0x00, 0x0a, 0x00];
         let bus = create_test_bus(&program);
         let mut cpu = Cpu::new(bus);
-        cpu.register.p.c = false;
+        cpu.register.p.remove(StatusRegister::c);
         cpu.register.a = 0b0000_0001;
         cpu.run();
 
@@ -1299,7 +1251,7 @@ mod tests {
         let program = vec![0xf0, 0x01, 0x00, 0x0a, 0x00];
         let bus = create_test_bus(&program);
         let mut cpu = Cpu::new(bus);
-        cpu.register.p.z = true;
+        cpu.register.p.insert(StatusRegister::z);
         cpu.register.a = 0b0000_0001;
         cpu.run();
 
@@ -1311,7 +1263,7 @@ mod tests {
         let program = vec![0xf0, 0x01, 0x00, 0x0a, 0x00];
         let bus = create_test_bus(&program);
         let mut cpu = Cpu::new(bus);
-        cpu.register.p.z = false;
+        cpu.register.p.remove(StatusRegister::z);
         cpu.register.a = 0b0000_0001;
         cpu.run();
 
@@ -1327,9 +1279,9 @@ mod tests {
         cpu.register.a = 0x00;
         cpu.run();
 
-        assert_eq!(cpu.register.p.z, true);
-        assert_eq!(cpu.register.p.v, true);
-        assert_eq!(cpu.register.p.n, true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::z), true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::v), true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::n), true);
     }
 
     #[test]
@@ -1337,7 +1289,7 @@ mod tests {
         let program = vec![0x30, 0x01, 0x00, 0x0a, 0x00];
         let bus = create_test_bus(&program);
         let mut cpu = Cpu::new(bus);
-        cpu.register.p.n = true;
+        cpu.register.p.insert(StatusRegister::n);
         cpu.register.a = 0b0000_0001;
         cpu.run();
 
@@ -1349,7 +1301,7 @@ mod tests {
         let program = vec![0x30, 0x01, 0x00, 0x0a, 0x00];
         let bus = create_test_bus(&program);
         let mut cpu = Cpu::new(bus);
-        cpu.register.p.n = false;
+        cpu.register.p.remove(StatusRegister::n);
         cpu.register.a = 0b0000_0001;
         cpu.run();
 
@@ -1361,7 +1313,7 @@ mod tests {
         let program = vec![0xd0, 0x01, 0x00, 0x0a, 0x00];
         let bus = create_test_bus(&program);
         let mut cpu = Cpu::new(bus);
-        cpu.register.p.z = false;
+        cpu.register.p.remove(StatusRegister::z);
         cpu.register.a = 0b0000_0001;
         cpu.run();
 
@@ -1373,7 +1325,7 @@ mod tests {
         let program = vec![0xd0, 0x01, 0x00, 0x0a, 0x00];
         let bus = create_test_bus(&program);
         let mut cpu = Cpu::new(bus);
-        cpu.register.p.z = true;
+        cpu.register.p.insert(StatusRegister::z);
         cpu.register.a = 0b0000_0001;
         cpu.run();
 
@@ -1385,7 +1337,7 @@ mod tests {
         let program = vec![0x10, 0x01, 0x00, 0x0a, 0x00];
         let bus = create_test_bus(&program);
         let mut cpu = Cpu::new(bus);
-        cpu.register.p.n = false;
+        cpu.register.p.remove(StatusRegister::n);
         cpu.register.a = 0b0000_0001;
         cpu.run();
 
@@ -1397,7 +1349,7 @@ mod tests {
         let program = vec![0x10, 0x01, 0x00, 0x0a, 0x00];
         let bus = create_test_bus(&program);
         let mut cpu = Cpu::new(bus);
-        cpu.register.p.n = true;
+        cpu.register.p.insert(StatusRegister::n);
         cpu.register.a = 0b0000_0001;
         cpu.run();
 
@@ -1420,7 +1372,7 @@ mod tests {
         let program = vec![0x50, 0x01, 0x00, 0x0a, 0x00];
         let bus = create_test_bus(&program);
         let mut cpu = Cpu::new(bus);
-        cpu.register.p.v = false;
+        cpu.register.p.remove(StatusRegister::v);
         cpu.register.a = 0b0000_0001;
         cpu.run();
 
@@ -1432,7 +1384,7 @@ mod tests {
         let program = vec![0x50, 0x01, 0x00, 0x0a, 0x00];
         let bus = create_test_bus(&program);
         let mut cpu = Cpu::new(bus);
-        cpu.register.p.v = true;
+        cpu.register.p.insert(StatusRegister::v);
         cpu.register.a = 0b0000_0001;
         cpu.run();
 
@@ -1444,7 +1396,7 @@ mod tests {
         let program = vec![0x70, 0x01, 0x00, 0x0a, 0x00];
         let bus = create_test_bus(&program);
         let mut cpu = Cpu::new(bus);
-        cpu.register.p.v = true;
+        cpu.register.p.insert(StatusRegister::v);
         cpu.register.a = 0b0000_0001;
         cpu.run();
 
@@ -1456,7 +1408,7 @@ mod tests {
         let program = vec![0x70, 0x01, 0x00, 0x0a, 0x00];
         let bus = create_test_bus(&program);
         let mut cpu = Cpu::new(bus);
-        cpu.register.p.v = false;
+        cpu.register.p.remove(StatusRegister::v);
         cpu.register.a = 0b0000_0001;
         cpu.run();
 
@@ -1468,10 +1420,10 @@ mod tests {
         let program = vec![0x18, 0x00];
         let bus = create_test_bus(&program);
         let mut cpu = Cpu::new(bus);
-        cpu.register.p.c = true;
+        cpu.register.p.insert(StatusRegister::c);
         cpu.run();
 
-        assert_eq!(cpu.register.p.c, false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::c), false);
     }
 
     #[test]
@@ -1479,10 +1431,10 @@ mod tests {
         let program = vec![0xd8, 0x00];
         let bus = create_test_bus(&program);
         let mut cpu = Cpu::new(bus);
-        cpu.register.p.d = true;
+        cpu.register.p.insert(StatusRegister::d);
         cpu.run();
 
-        assert_eq!(cpu.register.p.d, false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::d), false);
     }
 
     #[test]
@@ -1490,10 +1442,10 @@ mod tests {
         let program = vec![0x58, 0x00];
         let bus = create_test_bus(&program);
         let mut cpu = Cpu::new(bus);
-        cpu.register.p.i = true;
+        cpu.register.p.insert(StatusRegister::i);
         cpu.run();
 
-        assert_eq!(cpu.register.p.i, false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::i), false);
     }
 
     #[test]
@@ -1501,10 +1453,10 @@ mod tests {
         let program = vec![0xb8, 0x00];
         let bus = create_test_bus(&program);
         let mut cpu = Cpu::new(bus);
-        cpu.register.p.v = true;
+        cpu.register.p.insert(StatusRegister::v);
         cpu.run();
 
-        assert_eq!(cpu.register.p.v, false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::v), false);
     }
 
     #[test]
@@ -1515,9 +1467,9 @@ mod tests {
         cpu.register.a = 0x01;
         cpu.run();
 
-        assert_eq!(cpu.register.p.c, true);
-        assert_eq!(cpu.register.p.z, true);
-        assert_eq!(cpu.register.p.n, false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::c), true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::z), true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::n), false);
     }
 
     #[test]
@@ -1526,12 +1478,12 @@ mod tests {
         let bus = create_test_bus(&program);
         let mut cpu = Cpu::new(bus);
         cpu.register.a = 0x01;
-        cpu.register.p.c = true;
+        cpu.register.p.insert(StatusRegister::c);
         cpu.run();
 
-        assert_eq!(cpu.register.p.c, false);
-        assert_eq!(cpu.register.p.z, false);
-        assert_eq!(cpu.register.p.n, true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::c), false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::z), false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::n), true);
     }
 
     #[test]
@@ -1542,9 +1494,9 @@ mod tests {
         cpu.register.x = 0x01;
         cpu.run();
 
-        assert_eq!(cpu.register.p.c, true);
-        assert_eq!(cpu.register.p.z, true);
-        assert_eq!(cpu.register.p.n, false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::c), true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::z), true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::n), false);
     }
 
     #[test]
@@ -1555,9 +1507,9 @@ mod tests {
         cpu.register.x = 0x01;
         cpu.run();
 
-        assert_eq!(cpu.register.p.c, false);
-        assert_eq!(cpu.register.p.z, false);
-        assert_eq!(cpu.register.p.n, true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::c), false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::z), false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::n), true);
     }
 
     #[test]
@@ -1568,9 +1520,9 @@ mod tests {
         cpu.register.y = 0x01;
         cpu.run();
 
-        assert_eq!(cpu.register.p.c, true);
-        assert_eq!(cpu.register.p.z, true);
-        assert_eq!(cpu.register.p.n, false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::c), true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::z), true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::n), false);
     }
 
     #[test]
@@ -1581,9 +1533,9 @@ mod tests {
         cpu.register.y = 0x01;
         cpu.run();
 
-        assert_eq!(cpu.register.p.c, false);
-        assert_eq!(cpu.register.p.z, false);
-        assert_eq!(cpu.register.p.n, true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::c), false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::z), false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::n), true);
     }
 
     #[test]
@@ -1596,8 +1548,8 @@ mod tests {
 
         let result = cpu.read_memory_byte(0x0002);
         assert_eq!(result, 0xff);
-        assert_eq!(cpu.register.p.z, false);
-        assert_eq!(cpu.register.p.n, true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::z), false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::n), true);
     }
 
     #[test]
@@ -1609,8 +1561,8 @@ mod tests {
         cpu.run();
 
         assert_eq!(cpu.register.x, 0xff);
-        assert_eq!(cpu.register.p.z, false);
-        assert_eq!(cpu.register.p.n, true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::z), false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::n), true);
     }
 
     #[test]
@@ -1622,8 +1574,8 @@ mod tests {
         cpu.run();
 
         assert_eq!(cpu.register.y, 0xff);
-        assert_eq!(cpu.register.p.z, false);
-        assert_eq!(cpu.register.p.n, true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::z), false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::n), true);
     }
 
     #[test]
@@ -1635,8 +1587,8 @@ mod tests {
         cpu.run();
 
         assert_eq!(cpu.register.a, 0xf0);
-        assert_eq!(cpu.register.p.z, false);
-        assert_eq!(cpu.register.p.n, true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::z), false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::n), true);
     }
 
     #[test]
@@ -1649,8 +1601,8 @@ mod tests {
 
         let result = cpu.read_memory_byte(0x0002);
         assert_eq!(result, 0x00);
-        assert_eq!(cpu.register.p.z, true);
-        assert_eq!(cpu.register.p.n, false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::z), true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::n), false);
     }
 
     #[test]
@@ -1662,8 +1614,8 @@ mod tests {
         cpu.run();
 
         assert_eq!(cpu.register.x, 0x00);
-        assert_eq!(cpu.register.p.z, true);
-        assert_eq!(cpu.register.p.n, false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::z), true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::n), false);
     }
 
     #[test]
@@ -1675,8 +1627,8 @@ mod tests {
         cpu.run();
 
         assert_eq!(cpu.register.y, 0x00);
-        assert_eq!(cpu.register.p.z, true);
-        assert_eq!(cpu.register.p.n, false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::z), true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::n), false);
     }
 
     #[test]
@@ -1690,7 +1642,7 @@ mod tests {
         let mut cpu = Cpu::new(bus);
         cpu.run();
 
-        assert_eq!(cpu.register.p.c, true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::c), true);
     }
 
     #[test]
@@ -1705,7 +1657,7 @@ mod tests {
         cpu.write_memory_word(0x0200, 0x800a);
         cpu.run();
 
-        assert_eq!(cpu.register.p.c, true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::c), true);
     }
 
     #[test]
@@ -1721,7 +1673,7 @@ mod tests {
 
         assert_eq!(cpu.register.sp, 0xfb);
         assert_eq!(cpu.read_memory_word(0x01fc), 0x8002);
-        assert_eq!(cpu.register.p.c, true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::c), true);
     }
 
     #[test]
@@ -1732,8 +1684,8 @@ mod tests {
         cpu.run();
 
         assert_eq!(cpu.register.a, 0x05);
-        assert_eq!(cpu.register.p.z, false);
-        assert_eq!(cpu.register.p.n, false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::z), false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::n), false);
     }
 
     #[test]
@@ -1743,7 +1695,7 @@ mod tests {
         let mut cpu = Cpu::new(bus);
         cpu.run();
 
-        assert_eq!(cpu.register.p.z, true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::z), true);
     }
 
     #[test]
@@ -1753,7 +1705,7 @@ mod tests {
         let mut cpu = Cpu::new(bus);
         cpu.run();
 
-        assert_eq!(cpu.register.p.n, true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::n), true);
     }
 
     #[test]
@@ -1764,8 +1716,8 @@ mod tests {
         cpu.run();
 
         assert_eq!(cpu.register.x, 0b1000_0000);
-        assert_eq!(cpu.register.p.z, false);
-        assert_eq!(cpu.register.p.n, true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::z), false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::n), true);
     }
 
     #[test]
@@ -1776,8 +1728,8 @@ mod tests {
         cpu.run();
 
         assert_eq!(cpu.register.y, 0b1000_0000);
-        assert_eq!(cpu.register.p.z, false);
-        assert_eq!(cpu.register.p.n, true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::z), false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::n), true);
     }
 
     #[test]
@@ -1789,9 +1741,9 @@ mod tests {
         cpu.run();
 
         assert_eq!(cpu.register.a, 0b0110_0111);
-        assert_eq!(cpu.register.p.c, true);
-        assert_eq!(cpu.register.p.z, false);
-        assert_eq!(cpu.register.p.n, false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::c), true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::z), false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::n), false);
     }
 
     #[test]
@@ -1804,9 +1756,9 @@ mod tests {
 
         let result = cpu.read_memory_byte(0x0010);
         assert_eq!(result, 0b0000_0111);
-        assert_eq!(cpu.register.p.c, false);
-        assert_eq!(cpu.register.p.z, false);
-        assert_eq!(cpu.register.p.n, false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::c), false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::z), false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::n), false);
     }
 
     #[test]
@@ -1826,8 +1778,8 @@ mod tests {
         cpu.run();
 
         assert_eq!(cpu.register.a, 0xd5);
-        assert_eq!(cpu.register.p.z, false);
-        assert_eq!(cpu.register.p.n, true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::z), false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::n), true);
     }
 
     #[test]
@@ -1847,7 +1799,7 @@ mod tests {
         let program = vec![0x08, 0x00];
         let bus = create_test_bus(&program);
         let mut cpu = Cpu::new(bus);
-        cpu.register.p.write(0b01000101);
+        cpu.register.p = StatusRegister::from_bits(0b01000101).unwrap();
         cpu.run();
 
         assert_eq!(cpu.register.sp, 0xfc);
@@ -1865,8 +1817,8 @@ mod tests {
 
         assert_eq!(cpu.register.sp, 0xfd);
         assert_eq!(cpu.register.a, 0x80);
-        assert_eq!(cpu.register.p.z, false);
-        assert_eq!(cpu.register.p.n, true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::z), false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::n), true);
     }
 
     #[test]
@@ -1879,7 +1831,7 @@ mod tests {
         cpu.run();
 
         assert_eq!(cpu.register.sp, 0xfd);
-        assert_eq!(cpu.register.p.read(), 0b01100101);
+        assert_eq!(cpu.register.p.bits(), 0b01100101);
     }
 
     #[test]
@@ -1888,13 +1840,13 @@ mod tests {
         let bus = create_test_bus(&program);
         let mut cpu = Cpu::new(bus);
         cpu.register.a = 0b1100_1111;
-        cpu.register.p.c = true;
+        cpu.register.p.insert(StatusRegister::c);
         cpu.run();
 
         assert_eq!(cpu.register.a, 0b1001_1111);
-        assert_eq!(cpu.register.p.c, true);
-        assert_eq!(cpu.register.p.z, false);
-        assert_eq!(cpu.register.p.n, true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::c), true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::z), false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::n), true);
     }
 
     #[test]
@@ -1907,9 +1859,9 @@ mod tests {
 
         let result = cpu.read_memory_byte(0x0010);
         assert_eq!(result, 0b0001_1110);
-        assert_eq!(cpu.register.p.c, false);
-        assert_eq!(cpu.register.p.z, false);
-        assert_eq!(cpu.register.p.n, false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::c), false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::z), false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::n), false);
     }
 
     #[test]
@@ -1918,13 +1870,13 @@ mod tests {
         let bus = create_test_bus(&program);
         let mut cpu = Cpu::new(bus);
         cpu.register.a = 0b1100_1111;
-        cpu.register.p.c = true;
+        cpu.register.p.insert(StatusRegister::c);
         cpu.run();
 
         assert_eq!(cpu.register.a, 0b1110_0111);
-        assert_eq!(cpu.register.p.c, true);
-        assert_eq!(cpu.register.p.z, false);
-        assert_eq!(cpu.register.p.n, true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::c), true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::z), false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::n), true);
     }
 
     #[test]
@@ -1937,9 +1889,9 @@ mod tests {
 
         let result = cpu.read_memory_byte(0x0010);
         assert_eq!(result, 0b0000_0111);
-        assert_eq!(cpu.register.p.c, false);
-        assert_eq!(cpu.register.p.z, false);
-        assert_eq!(cpu.register.p.n, false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::c), false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::z), false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::n), false);
     }
 
     #[test]
@@ -1957,8 +1909,8 @@ mod tests {
         cpu.run();
 
         assert_eq!(cpu.register.sp, 0xfd);
-        assert_eq!(cpu.register.p.c, true);
-        assert_eq!(cpu.register.p.read(), 0b01100101);
+        assert_eq!(cpu.register.p.contains(StatusRegister::c), true);
+        assert_eq!(cpu.register.p.bits(), 0b01100101);
     }
 
     #[test]
@@ -1975,7 +1927,7 @@ mod tests {
         cpu.run();
 
         assert_eq!(cpu.register.sp, 0xfd);
-        assert_eq!(cpu.register.p.c, true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::c), true);
     }
 
     #[test]
@@ -1984,12 +1936,12 @@ mod tests {
         let bus = create_test_bus(&program);
         let mut cpu = Cpu::new(bus);
         cpu.register.a = 0x50;
-        cpu.register.p.c = true;
+        cpu.register.p.insert(StatusRegister::c);
         cpu.run();
 
         assert_eq!(cpu.register.a, 0x10);
-        assert_eq!(cpu.register.p.c, true);
-        assert_eq!(cpu.register.p.v, false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::c), true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::v), false);
     }
 
     #[test]
@@ -1998,12 +1950,12 @@ mod tests {
         let bus = create_test_bus(&program);
         let mut cpu = Cpu::new(bus);
         cpu.register.a = 0x50;
-        cpu.register.p.c = true;
+        cpu.register.p.insert(StatusRegister::c);
         cpu.run();
 
         assert_eq!(cpu.register.a, 0xa0);
-        assert_eq!(cpu.register.p.c, false);
-        assert_eq!(cpu.register.p.v, true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::c), false);
+        assert_eq!(cpu.register.p.contains(StatusRegister::v), true);
     }
 
     #[test]
@@ -2012,12 +1964,12 @@ mod tests {
         let bus = create_test_bus(&program);
         let mut cpu = Cpu::new(bus);
         cpu.register.a = 0xd0;
-        cpu.register.p.c = false;
+        cpu.register.p.remove(StatusRegister::c);
         cpu.run();
 
         assert_eq!(cpu.register.a, 0x5f);
-        assert_eq!(cpu.register.p.c, true);
-        assert_eq!(cpu.register.p.v, true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::c), true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::v), true);
     }
 
     #[test]
@@ -2027,7 +1979,7 @@ mod tests {
         let mut cpu = Cpu::new(bus);
         cpu.run();
 
-        assert_eq!(cpu.register.p.c, true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::c), true);
     }
 
     #[test]
@@ -2037,7 +1989,7 @@ mod tests {
         let mut cpu = Cpu::new(bus);
         cpu.run();
 
-        assert_eq!(cpu.register.p.d, true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::d), true);
     }
 
     #[test]
@@ -2047,7 +1999,7 @@ mod tests {
         let mut cpu = Cpu::new(bus);
         cpu.run();
 
-        assert_eq!(cpu.register.p.i, true);
+        assert_eq!(cpu.register.p.contains(StatusRegister::i), true);
     }
 
     #[test]
