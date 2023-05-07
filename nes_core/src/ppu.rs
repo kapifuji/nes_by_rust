@@ -206,11 +206,11 @@ struct PpuRegister {
 
 pub struct Ppu {
     /// 0x0000 ~ 0x1FFF
-    charactor_rom: Vec<u8>,
+    pub charactor_rom: Vec<u8>,
     /// 0x3F00 ~ 0x3FFF
     palette_table: [u8; 0x20],
     /// 0x2000 ~ 0x3F00
-    vram: [u8; 0x800],
+    pub vram: [u8; 0x800],
     oam_data: [u8; 0x100],
     mirroring: Mirroring,
     register: PpuRegister,
@@ -376,5 +376,17 @@ impl Ppu {
             (Mirroring::Horizontal, 3) => vram_index - 0x800,
             _ => vram_index,
         }
+    }
+
+    pub fn read_background_pattern_address(&self) -> u16 {
+        if self.register.ppu_control.background_pattern_address {
+            0x1000
+        } else {
+            0x0000
+        }
+    }
+
+    pub fn poll_nmi_interrupt(&self) -> bool {
+        self.nmi_interrupt
     }
 }
