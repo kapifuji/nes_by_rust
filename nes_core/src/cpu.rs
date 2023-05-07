@@ -899,6 +899,8 @@ impl<'a> Cpu<'a> {
                 .expect(&format!("{} is not recognized", code))
                 .clone();
 
+            let mut is_update_pc = true;
+
             match opcode.instruction {
                 Instruction::ADC => self.adc(&opcode.addressing_mode),
                 Instruction::AND => self.and(&opcode.addressing_mode),
@@ -929,13 +931,11 @@ impl<'a> Cpu<'a> {
                 Instruction::INY => self.iny(),
                 Instruction::JMP => {
                     self.jmp(&opcode.addressing_mode);
-                    self.bus.tick(opcode.cycles);
-                    continue; // PCを動かさない。
+                    is_update_pc = false; // PCを動かさない。
                 }
                 Instruction::JSR => {
                     self.jsr(&opcode.addressing_mode);
-                    self.bus.tick(opcode.cycles);
-                    continue; // PCを動かさない。
+                    is_update_pc = false; // PCを動かさない。
                 }
                 Instruction::LDA => self.lda(&opcode.addressing_mode),
                 Instruction::LDX => self.ldx(&opcode.addressing_mode),
@@ -951,13 +951,11 @@ impl<'a> Cpu<'a> {
                 Instruction::ROR => self.ror(&opcode.addressing_mode),
                 Instruction::RTI => {
                     self.rti();
-                    self.bus.tick(opcode.cycles);
-                    continue; // PCを動かさない。
+                    is_update_pc = false; // PCを動かさない。
                 }
                 Instruction::RTS => {
                     self.rts();
-                    self.bus.tick(opcode.cycles);
-                    continue; // PCを動かさない。
+                    is_update_pc = false; // PCを動かさない。
                 }
                 Instruction::SBC => self.sbc(&opcode.addressing_mode),
                 Instruction::SEC => self.sec(),
@@ -990,7 +988,9 @@ impl<'a> Cpu<'a> {
 
             self.bus.tick(opcode.cycles);
 
-            self.register.pc += opcode.bytes as u16 - 1;
+            if is_update_pc {
+                self.register.pc += opcode.bytes as u16 - 1;
+            }
         }
     }
 }
